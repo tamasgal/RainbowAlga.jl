@@ -56,7 +56,7 @@ function main()
     det_center = center(det)
 
     @show det_center
-    cam = cam3d!(scene, rotation_centre = :lookat) # leave out if you implement your own camera
+    cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
 
     event = f.online.events[event_id]
     chits = calibrate(det, event.triggered_hits);
@@ -77,7 +77,7 @@ function main()
     )
 
 
-    basegrid!(scene)
+    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
 
     tracks = Track[]
     for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks

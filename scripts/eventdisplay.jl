@@ -49,32 +49,14 @@ function main()
     println("Loading event data.")
     fname = args["-i"]
     f = ROOTFile(fname)
-    event_id = 1
-    # pos_x = f["E/Evt/trks/trks.pos.x"][event_id]
-    # pos_y = f["E/Evt/trks/trks.pos.y"][event_id]
-    # pos_z = f["E/Evt/trks/trks.pos.z"][event_id]
-    # track_positions = [Point3f(pos_x[i], pos_y[i], pos_z[i]) for i ∈ length(pos_x)]
-    # dir_x = f["E/Evt/trks/trks.dir.x"][event_id]
-    # dir_y = f["E/Evt/trks/trks.dir.y"][event_id]
-    # dir_z = f["E/Evt/trks/trks.dir.z"][event_id]
-    # track_directions = [Point3f(dir_x[i], dir_y[i], dir_z[i]) for i ∈ length(dir_x)]
+    event_id = 19
 
     println("Loading detector geometry.")
     det = Detector(args["-D"])
-    # detector = meshscatter!(scene, [mod.pos for mod ∈ det], color=RGBf(0, 0, 1), markersize = [Vec3f(10) for mod ∈ det])
     det_center = center(det)
 
     @show det_center
-    cam = cam3d!(scene, rotation_centre = det_center) # leave out if you implement your own camera
-    update_cam!(scene, cameracontrols(scene), Vec3f(1000), det_center)
-
-    # pos = 10 .* rand(Point3f, 1000)
-    # colors = rand(RGBf, 1000)
-    # scales = 0.2 .* [Vec3f(0.5) .+ v for v in rand(Vec3f, 1000)]
-    # meshplot = meshscatter!(scene, pos, color = colors, markersize = scales)
-
-    mesh!(scene, Sphere(Point3f(0), 100.0), color=:black)
-    mesh!(scene, Sphere(Point3f(det_center), 100.0), color=:red)
+    cam = cam3d!(scene, rotation_centre = :lookat) # leave out if you implement your own camera
 
     event = f.online.events[event_id]
     chits = calibrate(det, event.triggered_hits);
@@ -82,26 +64,29 @@ function main()
     t_min, t_max = extrema(h.t for h ∈ chits)
     Δt = t_max - t_min
 
+    # Static detector display
     for m ∈ det
         mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=:grey)
     end
 
-    for hit ∈ chits
-        color = (hit.t - t_min) / Δt
-        mesh!(scene, Sphere(Point3f(hit.pos), √hit.tot), color=cmap[color])
-    end
+    hits_mesh = meshscatter!(
+        scene,
+        [Point3f(h.pos) for h ∈ chits],
+        color = [cmap[(h.t - t_min) / Δt] for h ∈ chits],
+        markersize = [0 for _ ∈ chits]
+    )
 
 
     basegrid!(scene)
-    # lines!(scene, [Point3f(0), Point3f(0, 0, 10)])  # centre pole, just for reference
 
     tracks = Track[]
-    # for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
-    #     push!(tracks, Track(scene, track.pos, track.dir, 300000000.0, 0.0))
-    # end
-    # println("Found $(length(tracks)) tracks.")
+    for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
+        push!(tracks, Track(scene, track.pos, track.dir, 300000000.0, 0.0))
+    end
+    println("Found $(length(tracks)) tracks.")
 
     center!(scene)
+    update_cam!(scene, cam, Vec3f(1000), det_center)
 
     screen = display(GLMakie.Screen(start_renderloop=false), scene)
 
@@ -118,11 +103,13 @@ function main()
 
     while isopen(screen)
         # meshplot.colors = rand(RGBf, 1000)
-        # meshplot.markersize = 0.2 .* [Vec3f(0.5) .+ v for v in rand(Vec3f, 1000)]
         # meshplot[1] = 10 .* rand(Point3f, 1000)
+        t = t_min + frame_idx
+        hit_sizes = [t >= h.t ? √h.tot : 0 for h ∈ chits]
+        hits_mesh.markersize = hit_sizes
 
         for track ∈ tracks
-            draw!(track, frame_idx / 10.0)
+            draw!(track, frame_idx)
         end
 
         framecounter.text = "t = $frame_idx ns"

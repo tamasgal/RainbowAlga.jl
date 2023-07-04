@@ -3,6 +3,13 @@ uuid = "63f1f1a9-5054-400b-8c42-42c880e99857"
 authors = ["Tamas Gal <himself@tamasgal.com> and contributors"]
 version = "1.0.0-DEV"
 
+[deps]
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
+DocOpt = "968ba79b-81e4-546f-ab3a-2eecfa62a9db"
+GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+KM3io = "2cab5852-6f21-4982-99b0-6a4792870cfb"
+
 [compat]
 julia = "1.6"
 

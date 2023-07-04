@@ -40,6 +40,48 @@ function draw!(track::Track, t)
     nothing
 end
 
+function generate_hit_positions(hits)
+    pmt_map = Dict{Location, Int}()
+    pos = Point3f[]
+    for hit ∈ hits
+        loc = Location(hit.du, hit.floor)
+        if !(loc ∈ keys(pmt_map))
+            pmt_map[loc] = 0
+        else
+            pmt_map[loc] += 1
+        end
+        i = pmt_map[loc]
+        push!(pos, Point3f(hit.pos + hit.dir*10 + hit.dir/10*i))
+    end
+    pos
+end
+
+function draw!(scene, det::Detector)
+    for m ∈ det
+        if !isbasemodule(m)
+            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=:grey)
+        end
+    end
+    basemodules = [m for m ∈ det if isbasemodule(m)]
+    meshscatter!(
+        scene,
+        [m.pos for m ∈ basemodules],
+        marker=Rect3f(Vec3f(-0.5), Vec3f(0.5)),
+        markersize=5,
+        color=:black
+    )
+    floors = 18  # TODO: implement floor field in KM3io.jl
+    for string ∈ det.strings
+        segments = [det.locations[(string, floor)].pos for floor ∈ 0:floors]
+        top_module = det.locations[(string, floors)]
+        buoy_pos = top_module.pos + Point3f(0, 0, 100)
+        push!(segments, buoy_pos)
+        lines!(scene, segments; color=:grey, linewidth=1)
+        mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow)
+    end
+    scene
+end
+
 
 function main()
     println("Creating scene.")
@@ -59,19 +101,18 @@ function main()
     cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
 
     event = f.online.events[event_id]
-    chits = calibrate(det, event.triggered_hits);
+    cthits = calibrate(det, event.triggered_hits)
+    chits = calibrate(det, event.snapshot_hits)
 
-    t_min, t_max = extrema(h.t for h ∈ chits)
+    t_min, t_max = extrema(h.t for h ∈ cthits)
     Δt = t_max - t_min
 
-    # Static detector display
-    for m ∈ det
-        mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=:grey)
-    end
+    draw!(scene, det)
 
+    pos = generate_hit_positions(chits)
     hits_mesh = meshscatter!(
         scene,
-        [Point3f(h.pos) for h ∈ chits],
+        pos,
         color = [cmap[(h.t - t_min) / Δt] for h ∈ chits],
         markersize = [0 for _ ∈ chits]
     )
@@ -99,13 +140,22 @@ function main()
             frame_idx = 0
             return Consume()
         end
+        if event.key == Makie.Keyboard.left
+            frame_idx -= 100
+            return Consume()
+        end
+        if event.key == Makie.Keyboard.right
+            frame_idx += 100
+            return Consume()
+        end
     end
 
     while isopen(screen)
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
+        rotate_cam!(scene, Vec3f(0, 0.001, 0))
         t = t_min + frame_idx
-        hit_sizes = [t >= h.t ? √h.tot : 0 for h ∈ chits]
+        hit_sizes = [t >= h.t ? √h.tot/2 : 0 for h ∈ chits]
         hits_mesh.markersize = hit_sizes
 
         for track ∈ tracks
@@ -117,10 +167,9 @@ function main()
         GLMakie.pollevents(screen)
         GLMakie.render_frame(screen)
 
-
         GLFW.SwapBuffers(GLMakie.to_native(screen))
 
-        frame_idx += 1
+        frame_idx += 3
     end
     GLMakie.destroy!(screen)
 end

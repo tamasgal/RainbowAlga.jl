@@ -51,7 +51,7 @@ function generate_hit_positions(hits)
             pmt_map[loc] += 1
         end
         i = pmt_map[loc]
-        push!(pos, Point3f(hit.pos + hit.dir*10 + hit.dir/10*i))
+        push!(pos, Point3f(hit.pos + hit.dir*10 + hit.dir/8*i))
     end
     pos
 end
@@ -150,12 +150,18 @@ function main()
         end
     end
 
+
+    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
+    # subwindow.clear = true
+    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
+    # plot!(subwindow, [1, 2, 3], rand(3))
+
     while isopen(screen)
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
         rotate_cam!(scene, Vec3f(0, 0.001, 0))
         t = t_min + frame_idx
-        hit_sizes = [t >= h.t ? √h.tot/2 : 0 for h ∈ chits]
+        hit_sizes = [t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
         hits_mesh.markersize = hit_sizes
 
         for track ∈ tracks

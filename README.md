@@ -28,4 +28,4 @@ julia> using RainbowAlga, KM3NeTTestData
 julia> run("some_detector.detx", "some_online_file.root")
 ```
 
-[!RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)
+![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

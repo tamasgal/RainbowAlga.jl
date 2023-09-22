@@ -12,17 +12,23 @@ the KM3NeT Julia registry to your local Julia registry list, follow the
 instructions in its
 [README](https://git.km3net.de/common/julia-registry#adding-the-registry) or simply do
 
-    git clone https://git.km3net.de/common/julia-registry ~/.julia/registries/KM3NeT
+``` shell
+git clone https://git.km3net.de/common/julia-registry ~/.julia/registries/KM3NeT
+```
+
     
 After that, you can add `RainbowAlga.jl` just like any other Julia package:
 
-    julia> import Pkg; Pkg.add("RainbowAlga")
+``` julia
+julia> import Pkg; Pkg.add("RainbowAlga")
+```
+
     
 # Quickstart
 
 The `run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
 
-``` julia-repl
+``` julia
 julia> using RainbowAlga
 
 julia> run("some_detector.detx", "some_online_file.root", 23)

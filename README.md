@@ -28,6 +28,6 @@ julia> using RainbowAlga
 julia> run("some_detector.detx", "some_online_file.root", 23)
 ```
 
-You can use the left and right arrow keys to go back and forth in time and `R` to reset the time.
+You can use <kbd>&larr;</kbd> and <kbd>&larr;</kbd> to go back and forth in time and `R` to reset the time.
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

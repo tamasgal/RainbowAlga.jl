@@ -11,7 +11,7 @@ GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 KM3io = "2cab5852-6f21-4982-99b0-6a4792870cfb"
 
 [compat]
-julia = "1.6"
+julia = "1.8"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

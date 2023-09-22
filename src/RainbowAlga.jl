@@ -84,20 +84,19 @@ function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewi
 end
 
 
-function run(fname, detx)
+function run(detector_fname::AbstractString, event_fname::AbstractString)
     println("Creating scene.")
     scene = Scene(backgroundcolor=RGBf(0.9))
     cmap = ColorSchemes.hawaii
 
     println("Loading event data.")
-    f = ROOTFile(fname)
+    f = ROOTFile(event_fname)
     event_id = 19
 
     println("Loading detector geometry.")
-    det = Detector(detx)
+    det = Detector(detector_fname)
     det_center = center(det)
 
-    @show det_center
     cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
 
     event = f.online.events[event_id]
@@ -141,11 +140,11 @@ function run(fname, detx)
             return Consume()
         end
         if event.key == Makie.Keyboard.left
-            frame_idx -= 100
+            frame_idx -= 200
             return Consume()
         end
         if event.key == Makie.Keyboard.right
-            frame_idx += 100
+            frame_idx += 200
             return Consume()
         end
     end

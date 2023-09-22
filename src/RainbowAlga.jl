@@ -84,14 +84,13 @@ function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewi
 end
 
 
-function run(detector_fname::AbstractString, event_fname::AbstractString)
+function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
     println("Creating scene.")
     scene = Scene(backgroundcolor=RGBf(0.9))
     cmap = ColorSchemes.hawaii
 
     println("Loading event data.")
     f = ROOTFile(event_fname)
-    event_id = 19
 
     println("Loading detector geometry.")
     det = Detector(detector_fname)

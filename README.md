@@ -20,12 +20,12 @@ After that, you can add `RainbowAlga.jl` just like any other Julia package:
     
 # Quickstart
 
-The `run(detector_fname, event_fname)` can be used to invoke the 3D display.
+The `run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
 
 ``` julia-repl
 julia> using RainbowAlga, KM3NeTTestData
 
-julia> run("some_detector.detx", "some_online_file.root")
+julia> run("some_detector.detx", "some_online_file.root", 23)
 ```
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

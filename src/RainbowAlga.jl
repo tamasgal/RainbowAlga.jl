@@ -84,45 +84,53 @@ function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewi
 end
 
 
+"""
+Only displays the detector.
+"""
+run(detector_fname::AbstractString) = run(detector_fname, "", 0)
+
+"""
+Run the RainbowAlga GUI and display the specified event.
+"""
 function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
     println("Creating scene.")
     scene = Scene(backgroundcolor=RGBf(0.9))
     cmap = ColorSchemes.hawaii
 
-    println("Loading event data.")
-    f = ROOTFile(event_fname)
-
     println("Loading detector geometry.")
     det = Detector(detector_fname)
     det_center = center(det)
+    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
+    draw!(scene, det)
 
     cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
 
-    event = f.online.events[event_id]
-    cthits = calibrate(det, event.triggered_hits)
-    chits = calibrate(det, event.snapshot_hits)
-
-    t_min, t_max = extrema(h.t for h ∈ cthits)
-    Δt = t_max - t_min
-
-    draw!(scene, det)
-
-    pos = generate_hit_positions(chits)
-    hits_mesh = meshscatter!(
-        scene,
-        pos,
-        color = [cmap[(h.t - t_min) / Δt] for h ∈ chits],
-        markersize = [0 for _ ∈ chits]
-    )
-
-
-    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
-
     tracks = Track[]
-    for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
-        push!(tracks, Track(scene, track.pos, track.dir, 300000000.0, 0.0))
+
+    if event_fname != ""
+        println("Loading event data.")
+        f = ROOTFile(event_fname)
+
+        event = f.online.events[event_id]
+        cthits = calibrate(det, event.triggered_hits)
+        chits = calibrate(det, event.snapshot_hits)
+
+        t_min, t_max = extrema(h.t for h ∈ cthits)
+        Δt = t_max - t_min
+
+        pos = generate_hit_positions(chits)
+        hits_mesh = meshscatter!(
+            scene,
+            pos,
+            color = [cmap[(h.t - t_min) / Δt] for h ∈ chits],
+            markersize = [0 for _ ∈ chits]
+        )
+
+        for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
+            push!(tracks, Track(scene, track.pos, track.dir, 300000000.0, 0.0))
+        end
+        println("Found $(length(tracks)) tracks.")
     end
-    println("Found $(length(tracks)) tracks.")
 
     center!(scene)
     update_cam!(scene, cam, Vec3f(1000), det_center)
@@ -158,15 +166,17 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
         rotate_cam!(scene, Vec3f(0, 0.001, 0))
-        t = t_min + frame_idx
-        hit_sizes = [t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
-        hits_mesh.markersize = hit_sizes
+        if event_fname != ""
+            t = t_min + frame_idx
+            hit_sizes = [t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            hits_mesh.markersize = hit_sizes
 
-        for track ∈ tracks
-            draw!(track, frame_idx)
+            for track ∈ tracks
+                draw!(track, frame_idx)
+            end
+
+            framecounter.text = "t = $frame_idx ns"
         end
-
-        framecounter.text = "t = $frame_idx ns"
 
         GLMakie.pollevents(screen)
         GLMakie.render_frame(screen)

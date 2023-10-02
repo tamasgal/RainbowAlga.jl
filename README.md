@@ -4,7 +4,7 @@
 [![Build Status](https://git.km3net.de/tgal/RainbowAlga.jl/badges/main/pipeline.svg)](https://git.km3net.de/tgal/RainbowAlga.jl/pipelines)
 [![Coverage](https://git.km3net.de/tgal/RainbowAlga.jl/badges/main/coverage.svg)](https://git.km3net.de/tgal/RainbowAlga.jl/commits/main)
 
-# Installation
+## Installation
 
 `RainbowAlga.jl` is not an officially registered Julia package but it's available via
 the [KM3NeT Julia registry](https://git.km3net.de/common/julia-registry). To add
@@ -24,7 +24,7 @@ julia> import Pkg; Pkg.add("RainbowAlga")
 ```
 
     
-# Quickstart
+## Quickstart
 
 The `run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
 

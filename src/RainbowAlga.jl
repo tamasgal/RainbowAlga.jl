@@ -55,10 +55,11 @@ function draw!(scene, det::Detector)
         markersize=5,
         color=:black
     )
-    floors = 18  # TODO: implement floor field in KM3io.jl
     for string ∈ det.strings
-        segments = [det.locations[(string, floor)].pos for floor ∈ 0:floors]
-        top_module = det.locations[(string, floors)]
+        modules = filter(m->m.location.string == string, collect(values(det.modules)))
+        sort!(modules, by=m->m.location.floor)
+        segments = [m.pos for m in modules]
+        top_module = modules[end]
         buoy_pos = top_module.pos + Point3f(0, 0, 100)
         push!(segments, buoy_pos)
         lines!(scene, segments; color=:grey, linewidth=1)

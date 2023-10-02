@@ -127,7 +127,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         )
 
         for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
-            push!(tracks, Track(scene, track.pos, track.dir, 300000000.0, 0.0))
+            push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0.0))
         end
         println("Found $(length(tracks)) tracks.")
     end

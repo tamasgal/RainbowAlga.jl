@@ -7,11 +7,11 @@ using GLFW
 using ColorSchemes
 
 struct Track
-    pos
-    dir
-    v
-    t₀
-    _lines
+    pos::Position{Float64}
+    dir::Direction{Float64}
+    v::Float64
+    t₀::Float64
+    _lines::Lines{Tuple{Vector{Point{3, Float32}}}}
 
     function Track(scene, pos, dir, v, t₀)
         _lines = lines!(scene, [pos, pos], color=RGBf(1, 0.2, 0))

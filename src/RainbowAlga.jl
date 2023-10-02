@@ -141,6 +141,9 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     frame_idx = 0
     framecounter = text!(pix, Point2f(10, 10), text = "t = 0 ns")
 
+    rotation_enabled = true
+    speed = 3
+
     on(events(scene).keyboardbutton, priority = 20) do event
         if event.key == Makie.Keyboard.r
             frame_idx = 0
@@ -154,6 +157,22 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
             frame_idx += 200
             return Consume()
         end
+        if event.key == Makie.Keyboard.a
+            rotation_enabled = false
+            return Consume()
+        end
+        if event.key == Makie.Keyboard.up
+            speed += 1
+            return Consume()
+        end
+        if event.key == Makie.Keyboard.down
+            speed -= 1
+            return Consume()
+        end
+        if event.key == Makie.Keyboard.space
+            speed = 0
+            return Consume()
+        end
     end
 
 
@@ -165,7 +184,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     while isopen(screen)
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
-        rotate_cam!(scene, Vec3f(0, 0.001, 0))
+        rotation_enabled && rotate_cam!(scene, Vec3f(0, 0.001, 0))
         if event_fname != ""
             t = t_min + frame_idx
             hit_sizes = [t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
@@ -183,7 +202,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
         GLFW.SwapBuffers(GLMakie.to_native(screen))
 
-        frame_idx += 3
+        frame_idx += speed
     end
     GLMakie.destroy!(screen)
 end

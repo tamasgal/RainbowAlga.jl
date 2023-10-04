@@ -45,6 +45,7 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>R</kbd>      | Reset time to 0      |
 | <kbd>A</kbd>      | Toggle auto-rotation |
 | <kbd>Space</kbd>  | Play/Pause           |
+| <kbd>Q</kbd>      | Quit                 |
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

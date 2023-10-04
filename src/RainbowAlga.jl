@@ -142,36 +142,47 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     frame_idx = 0
     framecounter = text!(pix, Point2f(10, 10), text = "t = 0 ns")
 
+    quit = false
     rotation_enabled = true
     speed = 3
+    previous_speed = speed
 
     on(events(scene).keyboardbutton, priority = 20) do event
-        if event.key == Makie.Keyboard.r
+        if ispressed(scene, Makie.Keyboard.r)
             frame_idx = 0
             return Consume()
         end
-        if event.key == Makie.Keyboard.left
+        if ispressed(scene, Makie.Keyboard.left)
             frame_idx -= 200
             return Consume()
         end
-        if event.key == Makie.Keyboard.right
+        if ispressed(scene, Makie.Keyboard.right)
             frame_idx += 200
             return Consume()
         end
-        if event.key == Makie.Keyboard.a
-            rotation_enabled = false
+        if ispressed(scene, Makie.Keyboard.a)
+            rotation_enabled = !rotation_enabled
             return Consume()
         end
-        if event.key == Makie.Keyboard.up
+        if ispressed(scene, Makie.Keyboard.up)
             speed += 1
             return Consume()
         end
-        if event.key == Makie.Keyboard.down
+        if ispressed(scene, Makie.Keyboard.down)
             speed -= 1
             return Consume()
         end
-        if event.key == Makie.Keyboard.space
-            speed = 0
+        if ispressed(scene, Makie.Keyboard.space)
+            if speed == 0
+                speed = previous_speed
+            else
+                previous_speed = speed
+                speed = 0
+            end
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.q)
+            quit = true
             return Consume()
         end
     end
@@ -183,6 +194,10 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # plot!(subwindow, [1, 2, 3], rand(3))
 
     while isopen(screen)
+        if quit
+            quit = false
+            break
+        end
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
         rotation_enabled && rotate_cam!(scene, Vec3f(0, 0.001, 0))

@@ -36,16 +36,17 @@ julia> run("some_detector.detx", "some_online_file.root", 23)
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.
 
-| Key               | Command              |
-|-------------------|----------------------|
-| <kbd>&larr;</kbd> | Time step back       |
-| <kbd>&rarr;</kbd> | Time step forward    |
-| <kbd>&uarr;</kbd> | Faster               |
-| <kbd>&darr;</kbd> | Slower               |
-| <kbd>R</kbd>      | Reset time to 0      |
-| <kbd>A</kbd>      | Toggle auto-rotation |
-| <kbd>Space</kbd>  | Play/Pause           |
-| <kbd>Q</kbd>      | Quit                 |
+| Key               | Command                             |
+|-------------------|-------------------------------------|
+| <kbd>&larr;</kbd> | Time step back                      |
+| <kbd>&rarr;</kbd> | Time step forward                   |
+| <kbd>&uarr;</kbd> | Faster                              |
+| <kbd>&darr;</kbd> | Slower                              |
+| <kbd>R</kbd>      | Reset time to 0                     |
+| <kbd>A</kbd>      | Toggle auto-rotation                |
+| <kbd>C</kbd>      | Toggle Cherenkov colouring for hits |
+| <kbd>Space</kbd>  | Play/Pause                          |
+| <kbd>Q</kbd>      | Quit                                |
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

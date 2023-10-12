@@ -29,6 +29,18 @@ function draw!(track::Track, t)
     track
 end
 
+
+mutable struct RBAScene
+    scene::Scene
+    frame_idx::Int
+    rotation_enabled::Bool
+    speed::Int
+    tracks::Vector{Track}
+    RBAScene(scene::Scene) = new(scene, 0, true, 3, Tracks[])
+end
+function add!(scene::RBAScene, track::Track)
+
+end
 function generate_hit_positions(hits)
     pmt_map = Dict{Location, Int}()
     pos = Point3f[]

@@ -10,19 +10,23 @@ struct Track
     pos::Position{Float64}
     dir::Direction{Float64}
     v::Float64
-    t₀::Float64
+    t::Float64
     _lines::Lines{Tuple{Vector{Point{3, Float32}}}}
 
-    function Track(scene, pos, dir, v, t₀)
-        _lines = lines!(scene, [pos, pos], color=RGBf(1, 0.2, 0))
-        new(pos, dir, v, t₀, _lines)
+    function Track(scene, pos, dir, v, t; color=RGBf(1, 0.2, 0))
+        _lines = lines!(scene, [pos, pos], color=color)
+        new(pos, dir, v, t, _lines)
     end
 end
 
 function draw!(track::Track, t)
-    endpos =  track.pos + track.v * track.dir * (track.t₀ + t)*1e-9
+    if t < track.t
+        track._lines[1] = [track.pos, track.pos]
+        return track
+    end
+    endpos =  track.pos + track.v * track.dir * (t - track.t) / 1e9
     track._lines[1] = [track.pos, endpos]
-    nothing
+    track
 end
 
 function generate_hit_positions(hits)
@@ -118,18 +122,39 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
         t_min, t_max = extrema(h.t for h ∈ cthits)
         Δt = t_max - t_min
+        t_offset = t_min
+        @show t_offset
 
-        pos = generate_hit_positions(chits)
+        mc_event = f.offline[event.header.trigger_counter + 1]
+        for track ∈ [mc_event.mc_trks[1]]
+            track_t = mc_event.mc_t - (event.header.frame_index - 1) * 100e6
+            @show track_t - t_offset
+            push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, track_t))
+            # push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0))
+        end
+
+        positions = generate_hit_positions(chits)
+
+        if !isempty(tracks)
+            track = tracks[1]
+            cherenkov_photons = cherenkov(track, chits)
+
+            cherenkov_hits_mesh = meshscatter!(
+                scene,
+                positions,
+                color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
+                markersize = [0 for _ ∈ chits]
+            )
+        end
+
         hits_mesh = meshscatter!(
             scene,
-            pos,
-            color = [cmap[(h.t - t_min) / Δt] for h ∈ chits],
+            positions,
+            #color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
+            color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
             markersize = [0 for _ ∈ chits]
         )
 
-        for track ∈ f.offline[event.header.trigger_counter + 1].mc_trks
-            push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0.0))
-        end
         println("Found $(length(tracks)) tracks.")
     end
 
@@ -140,10 +165,11 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
     pix = Makie.campixel(scene)
     frame_idx = 0
-    framecounter = text!(pix, Point2f(10, 10), text = "t = 0 ns")
+    framecounter = text!(pix, Point2f(10, 10), text = "t = $frame_idx ns")
 
     quit = false
     rotation_enabled = true
+    show_cherenkov = false
     speed = 3
     previous_speed = speed
 
@@ -162,6 +188,10 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         end
         if ispressed(scene, Makie.Keyboard.a)
             rotation_enabled = !rotation_enabled
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.c)
+            show_cherenkov = !show_cherenkov
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.up)
@@ -202,15 +232,18 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         # meshplot[1] = 10 .* rand(Point3f, 1000)
         rotation_enabled && rotate_cam!(scene, Vec3f(0, 0.001, 0))
         if event_fname != ""
-            t = t_min + frame_idx
-            hit_sizes = [t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            t = t_offset + frame_idx
+            hit_sizes = [show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            cherenkov_hits_mesh.markersize = hit_sizes
+
+            hit_sizes = [!show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             hits_mesh.markersize = hit_sizes
 
             for track ∈ tracks
-                draw!(track, frame_idx)
+                draw!(track, t)
             end
 
-            framecounter.text = "t = $frame_idx ns"
+            framecounter.text = "t = $frame_idx ns (offset $t_offset ns)"
         end
 
         GLMakie.pollevents(screen)

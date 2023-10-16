@@ -28,6 +28,14 @@ function register_keyboard_events(scene::Scene)
             slower(1)
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard.comma)
+            decreasetot(0.5)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.period)
+            increasetot(0.5)
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.space)
             if isstopped()
                 start()

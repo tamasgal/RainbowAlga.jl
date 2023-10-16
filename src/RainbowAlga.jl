@@ -1,5 +1,7 @@
 module RainbowAlga
 
+using Printf
+
 using KM3io
 
 using GLMakie
@@ -10,8 +12,10 @@ include("interactivity.jl")
 
 Base.@kwdef mutable struct SimParams
     frame_idx::Int = 0
+    t_offset::Float64 = 0.0
     stopped::Bool = false
     speed::Int = 3
+    min_tot::Float64 = 26.3
     rotation_enabled::Bool = true
     show_cherenkov::Bool = false
     quit::Bool = false
@@ -27,6 +31,8 @@ const simparams = SimParams()
 @inline reset_time() = simparams.frame_idx = 0
 @inline faster(n::Int) = simparams.speed += n
 @inline slower(n::Int) = simparams.speed -= n
+@inline increasetot(t::Float64) = simparams.min_tot += t
+@inline decreasetot(t::Float64) = simparams.min_tot -= t
 @inline speed() = simparams.speed
 @inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
 @inline toggle_cherenkov() = simparams.show_cherenkov = !simparams.show_cherenkov
@@ -163,13 +169,12 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
         t_min, t_max = extrema(h.t for h ∈ cthits)
         Δt = t_max - t_min
-        t_offset = t_min
-        @show t_offset
+        simparams.t_offset = t_min
 
         mc_event = f.offline[event.header.trigger_counter + 1]
         for track ∈ [mc_event.mc_trks[1]]
             track_t = mc_event.mc_t - (event.header.frame_index - 1) * 100e6
-            @show track_t - t_offset
+            @show track_t - simparams.t_offset
             push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, track_t))
             # push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0))
         end
@@ -192,7 +197,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
             scene,
             positions,
             #color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
-            color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
+            color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ chits],
             markersize = [0 for _ ∈ chits]
         )
 
@@ -225,18 +230,18 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         # meshplot[1] = 10 .* rand(Point3f, 1000)
         rotation_enabled() && rotate_cam!(scene, Vec3f(0, 0.001, 0))
         if event_fname != ""
-            t = t_offset + simparams.frame_idx
-            hit_sizes = [cherenkov_enabled() && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            t = simparams.t_offset + simparams.frame_idx
+            hit_sizes = [cherenkov_enabled() && h.tot >= simparams.min_tot && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             cherenkov_hits_mesh.markersize = hit_sizes
 
-            hit_sizes = [!cherenkov_enabled() && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            hit_sizes = [!cherenkov_enabled() && h.tot >= simparams.min_tot && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             hits_mesh.markersize = hit_sizes
 
             for track ∈ tracks
                 draw!(track, t)
             end
 
-            framecounter.text = "t = $(simparams.frame_idx) ns (offset $t_offset ns)"
+            framecounter.text = generate_infotext()
         end
 
         GLMakie.pollevents(screen)
@@ -250,4 +255,13 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     end
     GLMakie.destroy!(screen)
 end
+
+function generate_infotext()
+    lines = String[]
+    push!(lines, "t = $(simparams.frame_idx) ns")
+    push!(lines, @sprintf "time offset = %.0f ns" simparams.t_offset)
+    push!(lines, @sprintf "ToT cut = %.1f" simparams.min_tot)
+    join(lines, "\n")
 end
+
+end  # module

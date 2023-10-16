@@ -9,6 +9,7 @@ DocOpt = "968ba79b-81e4-546f-ab3a-2eecfa62a9db"
 GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 KM3io = "2cab5852-6f21-4982-99b0-6a4792870cfb"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 julia = "1.8"

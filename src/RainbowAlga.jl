@@ -6,6 +6,36 @@ using GLMakie
 using GLFW
 using ColorSchemes
 
+include("interactivity.jl")
+
+Base.@kwdef mutable struct SimParams
+    frame_idx::Int = 0
+    stopped::Bool = false
+    speed::Int = 3
+    rotation_enabled::Bool = true
+    show_cherenkov::Bool = false
+    quit::Bool = false
+end
+
+# The global parameters for the 3D simulation
+const simparams = SimParams()
+
+# Control functions to steer the 3D simulation
+@inline isstopped() = simparams.stopped
+@inline stop() = simparams.stopped = true
+@inline start() = simparams.stopped = false
+@inline reset_time() = simparams.frame_idx = 0
+@inline faster(n::Int) = simparams.speed += n
+@inline slower(n::Int) = simparams.speed -= n
+@inline speed() = simparams.speed
+@inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
+@inline toggle_cherenkov() = simparams.show_cherenkov = !simparams.show_cherenkov
+@inline rotation_enabled() = simparams.rotation_enabled
+@inline cherenkov_enabled() = simparams.show_cherenkov
+
+"""
+A particle track.
+"""
 struct Track
     pos::Position{Float64}
     dir::Direction{Float64}
@@ -36,7 +66,6 @@ mutable struct RBAScene
     rotation_enabled::Bool
     speed::Int
     tracks::Vector{Track}
-    RBAScene(scene::Scene) = new(scene, 0, true, 3, Tracks[])
 end
 function add!(scene::RBAScene, track::Track)
 
@@ -176,58 +205,10 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     screen = display(GLMakie.Screen(start_renderloop=false), scene)
 
     pix = Makie.campixel(scene)
-    frame_idx = 0
-    framecounter = text!(pix, Point2f(10, 10), text = "t = $frame_idx ns")
 
-    quit = false
-    rotation_enabled = true
-    show_cherenkov = false
-    speed = 3
-    previous_speed = speed
+    framecounter = text!(pix, Point2f(10, 10), text = "t = $(simparams.frame_idx) ns")
 
-    on(events(scene).keyboardbutton, priority = 20) do event
-        if ispressed(scene, Makie.Keyboard.r)
-            frame_idx = 0
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.left)
-            frame_idx -= 200
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.right)
-            frame_idx += 200
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.a)
-            rotation_enabled = !rotation_enabled
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.c)
-            show_cherenkov = !show_cherenkov
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.up)
-            speed += 1
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.down)
-            speed -= 1
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.space)
-            if speed == 0
-                speed = previous_speed
-            else
-                previous_speed = speed
-                speed = 0
-            end
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.q)
-            quit = true
-            return Consume()
-        end
-    end
+    register_keyboard_events(scene)
 
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
@@ -236,26 +217,26 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # plot!(subwindow, [1, 2, 3], rand(3))
 
     while isopen(screen)
-        if quit
-            quit = false
+        if simparams.quit
+            simparams.quit = false
             break
         end
         # meshplot.colors = rand(RGBf, 1000)
         # meshplot[1] = 10 .* rand(Point3f, 1000)
-        rotation_enabled && rotate_cam!(scene, Vec3f(0, 0.001, 0))
+        rotation_enabled() && rotate_cam!(scene, Vec3f(0, 0.001, 0))
         if event_fname != ""
-            t = t_offset + frame_idx
-            hit_sizes = [show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            t = t_offset + simparams.frame_idx
+            hit_sizes = [cherenkov_enabled() && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             cherenkov_hits_mesh.markersize = hit_sizes
 
-            hit_sizes = [!show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
+            hit_sizes = [!cherenkov_enabled() && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             hits_mesh.markersize = hit_sizes
 
             for track ∈ tracks
                 draw!(track, t)
             end
 
-            framecounter.text = "t = $frame_idx ns (offset $t_offset ns)"
+            framecounter.text = "t = $(simparams.frame_idx) ns (offset $t_offset ns)"
         end
 
         GLMakie.pollevents(screen)
@@ -263,7 +244,9 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
         GLFW.SwapBuffers(GLMakie.to_native(screen))
 
-        frame_idx += speed
+        if !isstopped()
+            simparams.frame_idx += simparams.speed
+        end
     end
     GLMakie.destroy!(screen)
 end

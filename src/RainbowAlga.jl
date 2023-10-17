@@ -4,18 +4,26 @@ using Printf
 
 using KM3io
 
+using Makie
 using GLMakie
 using GLFW
 using ColorSchemes
 
 include("interactivity.jl")
 
+Base.@kwdef mutable struct DisplayParams
+    pos::Tuple{Int, Int} = (0, 0)
+    size::Tuple{Int, Int} = (600, 600)
+end
+
+const displayparams = DisplayParams()
+
 Base.@kwdef mutable struct SimParams
     frame_idx::Int = 0
     t_offset::Float64 = 0.0
     stopped::Bool = false
     speed::Int = 3
-    min_tot::Float64 = 26.3
+    min_tot::Float64 = 26.0
     rotation_enabled::Bool = true
     show_cherenkov::Bool = false
     quit::Bool = false
@@ -66,16 +74,17 @@ function draw!(track::Track, t)
 end
 
 
-mutable struct RBAScene
-    scene::Scene
-    frame_idx::Int
-    rotation_enabled::Bool
-    speed::Int
-    tracks::Vector{Track}
+@kwdef mutable struct RBA
+    scene::Scene = Scene(backgroundcolor=RGBf(0.9))
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), text = "")
+    tracks::Vector{Track} = Track[]
+    cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
 end
-function add!(scene::RBAScene, track::Track)
 
+function add!(rba::RBA, track::Track)
+    push!(rba.tracks, track)
 end
+
 function generate_hit_positions(hits)
     pmt_map = Dict{Location, Int}()
     pos = Point3f[]
@@ -92,10 +101,13 @@ function generate_hit_positions(hits)
     pos
 end
 
-function draw!(scene, det::Detector)
+function update!(rba::RBA, det::Detector)
+    scene = rba.scene
+    det_center = center(det)
+    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
     for m ∈ det
         if !isbasemodule(m)
-            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=:grey)
+            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
         end
     end
     basemodules = [m for m ∈ det if isbasemodule(m)]
@@ -116,6 +128,10 @@ function draw!(scene, det::Detector)
         lines!(scene, segments; color=:grey, linewidth=1)
         mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow)
     end
+
+    center!(scene)
+    update_cam!(scene, rba.cam, Vec3f(1000), center(det))
+
     scene
 end
 
@@ -146,18 +162,13 @@ Run the RainbowAlga GUI and display the specified event.
 """
 function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
     println("Creating scene.")
-    scene = Scene(backgroundcolor=RGBf(0.9))
+    rba = RBA()
+    scene = rba.scene
     cmap = ColorSchemes.hawaii
 
     println("Loading detector geometry.")
     det = Detector(detector_fname)
-    det_center = center(det)
-    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
-    draw!(scene, det)
-
-    cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
-
-    tracks = Track[]
+    update!(rba, det)
 
     if event_fname != ""
         println("Loading event data.")
@@ -174,22 +185,21 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
         mc_event = f.offline[event.header.trigger_counter + 1]
         for track ∈ [mc_event.mc_trks[1]]
             track_t = mc_event.mc_t - (event.header.frame_index - 1) * 100e6
-            @show track_t - simparams.t_offset
-            push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, track_t))
-            # push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0))
+            add!(rba, Track(scene, track.pos, track.dir, KM3io.Constants.c, track_t))
         end
 
         positions = generate_hit_positions(chits)
 
-        if !isempty(tracks)
-            track = tracks[1]
+        if !isempty(rba.tracks)
+            track = first(rba.tracks)
             cherenkov_photons = cherenkov(track, chits)
 
             cherenkov_hits_mesh = meshscatter!(
                 scene,
                 positions,
                 color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
-                markersize = [0 for _ ∈ chits]
+                markersize = [0 for _ ∈ chits],
+                alpha = 0.5,
             )
         end
 
@@ -198,20 +208,10 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
             positions,
             #color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
             color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ chits],
-            markersize = [0 for _ ∈ chits]
+            markersize = [0 for _ ∈ chits],
+            alpha = 0.5,
         )
-
-        println("Found $(length(tracks)) tracks.")
     end
-
-    center!(scene)
-    update_cam!(scene, cam, Vec3f(1000), det_center)
-
-    screen = display(GLMakie.Screen(start_renderloop=false), scene)
-
-    pix = Makie.campixel(scene)
-
-    framecounter = text!(pix, Point2f(10, 10), text = "t = $(simparams.frame_idx) ns")
 
     register_keyboard_events(scene)
 
@@ -220,6 +220,12 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # subwindow.clear = true
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
+
+    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true), scene)
+    glw = screen.glscreen
+    GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
+    GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
+
 
     while isopen(screen)
         if simparams.quit
@@ -237,17 +243,17 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
             hit_sizes = [!cherenkov_enabled() && h.tot >= simparams.min_tot && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
             hits_mesh.markersize = hit_sizes
 
-            for track ∈ tracks
+            for track ∈ rba.tracks
                 draw!(track, t)
             end
 
-            framecounter.text = generate_infotext()
+            rba.infobox.text = generate_infotext()
         end
 
         GLMakie.pollevents(screen)
         GLMakie.render_frame(screen)
 
-        GLFW.SwapBuffers(GLMakie.to_native(screen))
+        GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
 
         if !isstopped()
             simparams.frame_idx += simparams.speed
@@ -256,6 +262,9 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     GLMakie.destroy!(screen)
 end
 
+"""
+Generates the text for the infobox on the lower left.
+"""
 function generate_infotext()
     lines = String[]
     push!(lines, "t = $(simparams.frame_idx) ns")

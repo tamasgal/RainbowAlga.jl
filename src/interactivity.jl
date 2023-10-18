@@ -17,7 +17,7 @@ function register_keyboard_events(scene::Scene)
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.c)
-            toggle_cherenkov()
+            cycle_hits()
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.up)

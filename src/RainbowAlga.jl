@@ -1,11 +1,59 @@
 module RainbowAlga
 
+using Printf
+
 using KM3io
 
+using Makie
 using GLMakie
+using GeometryBasics
 using GLFW
+using Corpuscles
 using ColorSchemes
 
+export display3d, RBA
+
+
+include("interactivity.jl")
+
+Base.@kwdef mutable struct DisplayParams
+    pos::Tuple{Int, Int} = (0, 0)
+    size::Tuple{Int, Int} = (600, 600)
+end
+
+const displayparams = DisplayParams()
+
+Base.@kwdef mutable struct SimParams
+    frame_idx::Int = 0
+    t_offset::Float64 = 0.0
+    stopped::Bool = false
+    speed::Int = 3
+    min_tot::Float64 = 26.0
+    rotation_enabled::Bool = true
+    hits_selector::Int = 0
+    quit::Bool = false
+end
+
+# The global parameters for the 3D simulation
+const simparams = SimParams()
+
+# Control functions to steer the 3D simulation
+@inline isstopped() = simparams.stopped
+@inline stop() = simparams.stopped = true
+@inline start() = simparams.stopped = false
+@inline reset_time() = simparams.frame_idx = 0
+@inline faster(n::Int) = simparams.speed += n
+@inline slower(n::Int) = simparams.speed -= n
+@inline increasetot(t::Float64) = simparams.min_tot += t
+@inline decreasetot(t::Float64) = simparams.min_tot -= t
+@inline speed() = simparams.speed
+@inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
+@inline rotation_enabled() = simparams.rotation_enabled
+@inline cycle_hits() = simparams.hits_selector += 1
+
+"""
+A particle track.
+"""
 struct Track
     pos::Position{Float64}
     dir::Direction{Float64}
@@ -30,22 +78,107 @@ function draw!(track::Track, t)
 end
 
 
-mutable struct RBAScene
-    scene::Scene
-    frame_idx::Int
-    rotation_enabled::Bool
-    speed::Int
-    tracks::Vector{Track}
-    RBAScene(scene::Scene) = new(scene, 0, true, 3, Tracks[])
+@kwdef mutable struct RBA
+    detector::Detector
+    scene::Scene = Scene(backgroundcolor=RGBf(0.9))
+    cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), text = "")
+    tracks::Vector{Track} = Track[]
+    hits::Vector{XCalibratedHit} = XCalibratedHit[]
+    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}} = []
+    hits_mesh_descriptions::Vector{String} = []
 end
-function add!(scene::RBAScene, track::Track)
+Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
+function RBA(detector::Detector; kwargs...)
+    rba = RBA(detector=detector; kwargs...)
+    # TODO: this needs some rework
+    update!(rba.scene, detector)
+    register_keyboard_events(rba.scene)
+    center!(rba.scene)
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector))
+
+
+    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
+    # subwindow.clear = true
+    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
+    # plot!(subwindow, [1, 2, 3], rand(3))
+
+    rba
 end
+
+function display3d(rba::RBA)
+    start_eventloop(rba)
+end
+
+# const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
+
+
+function update!(rba::RBA, hits::Vector{XCalibratedHit})
+    positions = generate_hit_positions(hits)
+
+    t_min, t_max = extrema(h.t for h ∈ triggered(hits))
+    Δt = t_max - t_min
+    simparams.t_offset = t_min
+
+    cmap = ColorSchemes.hawaii
+    hits_mesh = meshscatter!(
+        rba.scene,
+        positions,
+        color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ hits],
+        markersize = [0 for _ ∈ hits],
+        alpha = 0.5,
+    )
+
+    rba.hits = hits
+    push!(rba.hits_meshes, hits_mesh)
+    push!(rba.hits_mesh_descriptions, "default")
+end
+
+function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit})
+    positions = generate_hit_positions(hits)
+
+    cherenkov_photons = cherenkov(track, hits)
+
+
+    cherenkov_hits_mesh = meshscatter!(
+        rba.scene,
+        positions,
+        color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
+        markersize = [0 for _ ∈ hits],
+        alpha = 0.5,
+    )
+
+    push!(rba.hits_meshes, cherenkov_hits_mesh)
+end
+
+function Base.empty!(rba::RBA)
+    for track in rba.tracks
+        delete!(rba.scene, track._lines)
+    end
+    empty!(rba.tracks)
+    empty!(rba.hits)
+    for hits_mesh in rba.hits_meshes
+        delete!(rba.scene, hits_mesh)
+    end
+    empty!(rba.hits_meshes)
+    empty!(rba.hits_mesh_descriptions)
+
+    # TODO: this is need to get rid of everything, otherwise "plots" still contains hundreds of elements
+    # Not sure why...
+    empty!(rba.scene.plots)
+    nothing
+end
+
+function add!(rba::RBA, track::Track)
+    push!(rba.tracks, track)
+end
+
 function generate_hit_positions(hits)
     pmt_map = Dict{Location, Int}()
     pos = Point3f[]
     for hit ∈ hits
-        loc = Location(hit.du, hit.floor)
+        loc = Location(hit.string, hit.floor)
         if !(loc ∈ keys(pmt_map))
             pmt_map[loc] = 0
         else
@@ -57,10 +190,12 @@ function generate_hit_positions(hits)
     pos
 end
 
-function draw!(scene, det::Detector)
+function update!(scene::Scene, det::Detector)
+    det_center = center(det)
+    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
     for m ∈ det
         if !isbasemodule(m)
-            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=:grey)
+            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
         end
     end
     basemodules = [m for m ∈ det if isbasemodule(m)]
@@ -81,6 +216,7 @@ function draw!(scene, det::Detector)
         lines!(scene, segments; color=:grey, linewidth=1)
         mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow)
     end
+
     scene
 end
 
@@ -102,132 +238,54 @@ end
 
 
 """
-Only displays the detector.
-"""
-run(detector_fname::AbstractString) = run(detector_fname, "", 0)
-
-"""
 Run the RainbowAlga GUI and display the specified event.
 """
 function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
     println("Creating scene.")
-    scene = Scene(backgroundcolor=RGBf(0.9))
-    cmap = ColorSchemes.hawaii
-
-    println("Loading detector geometry.")
     det = Detector(detector_fname)
-    det_center = center(det)
-    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
-    draw!(scene, det)
+    rba = RBA(det)
+    simparams.frame_idx = 0
+    # TODO: this needs some rework
+    update!(rba.scene, det)
 
-    cam = cam3d!(scene, rotation_center = :lookat) # leave out if you implement your own camera
+    println("Loading event data.")
+    f = ROOTFile(event_fname)
+    event = f.online.events[event_id]
+    chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
+    update!(rba, chits)
 
-    tracks = Track[]
-
-    if event_fname != ""
-        println("Loading event data.")
-        f = ROOTFile(event_fname)
-
-        event = f.online.events[event_id]
-        cthits = calibrate(det, event.triggered_hits)
-        chits = calibrate(det, event.snapshot_hits)
-
-        t_min, t_max = extrema(h.t for h ∈ cthits)
-        Δt = t_max - t_min
-        t_offset = t_min
-        @show t_offset
-
+    if !isnothing(f.offline)
+        @show event.header.trigger_counter + 1
         mc_event = f.offline[event.header.trigger_counter + 1]
-        for track ∈ [mc_event.mc_trks[1]]
+        length(mc_event.mc_trks) > 0 && println("MC track information found.")
+        for mc_track ∈ mc_event.mc_trks
+            !islepton(mc_track.type) && continue
+
+            particle_name = Particle(mc_track.type).name
+
+            println("  found a lepton: $(particle_name)")
             track_t = mc_event.mc_t - (event.header.frame_index - 1) * 100e6
-            @show track_t - t_offset
-            push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, track_t))
-            # push!(tracks, Track(scene, track.pos, track.dir, KM3io.Constants.c, 0))
-        end
-
-        positions = generate_hit_positions(chits)
-
-        if !isempty(tracks)
-            track = tracks[1]
-            cherenkov_photons = cherenkov(track, chits)
-
-            cherenkov_hits_mesh = meshscatter!(
-                scene,
-                positions,
-                color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
-                markersize = [0 for _ ∈ chits]
-            )
-        end
-
-        hits_mesh = meshscatter!(
-            scene,
-            positions,
-            #color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
-            color = [cmap[(h.t - t_offset) / Δt] for h ∈ chits],
-            markersize = [0 for _ ∈ chits]
-        )
-
-        println("Found $(length(tracks)) tracks.")
-    end
-
-    center!(scene)
-    update_cam!(scene, cam, Vec3f(1000), det_center)
-
-    screen = display(GLMakie.Screen(start_renderloop=false), scene)
-
-    pix = Makie.campixel(scene)
-    frame_idx = 0
-    framecounter = text!(pix, Point2f(10, 10), text = "t = $frame_idx ns")
-
-    quit = false
-    rotation_enabled = true
-    show_cherenkov = false
-    speed = 3
-    previous_speed = speed
-
-    on(events(scene).keyboardbutton, priority = 20) do event
-        if ispressed(scene, Makie.Keyboard.r)
-            frame_idx = 0
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.left)
-            frame_idx -= 200
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.right)
-            frame_idx += 200
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.a)
-            rotation_enabled = !rotation_enabled
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.c)
-            show_cherenkov = !show_cherenkov
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.up)
-            speed += 1
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.down)
-            speed -= 1
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.space)
-            if speed == 0
-                speed = previous_speed
+            if !isnothing(match(r"nu(.+)", particle_name))
+                color = RGBf(1.0, 0.2, 0)
             else
-                previous_speed = speed
-                speed = 0
+                color = RGBf(0.0, 0.8, 0.7)
             end
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.q)
-            quit = true
-            return Consume()
+
+            # track = Track(rba.scene, mc_track.pos - mc_track.dir * abs(mc_track.len), mc_track.dir, KM3io.Constants.c, track_t; color=color)
+            track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, track_t; color=color)
+            # TODO: rba.scene should not be needed
+            add!(rba, track)
+
+
+            if charge(mc_track.type) != 0
+                println("   -> adding Cherenkov hit information")
+                update!(rba, track, chits)
+            end
         end
     end
+
+    center!(rba.scene)
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(det))
 
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
@@ -235,36 +293,61 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
+    start_eventloop(rba)
+end
+
+"""
+Generates the text for the infobox on the lower left.
+"""
+function generate_infotext()
+    lines = String[]
+    push!(lines, "t = $(simparams.frame_idx) ns")
+    push!(lines, @sprintf "time offset = %.0f ns" simparams.t_offset)
+    push!(lines, @sprintf "ToT cut = %.1f" simparams.min_tot)
+    join(lines, "\n")
+end
+
+function start_eventloop(rba)
+    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true), rba.scene)
+    glw = screen.glscreen
+    GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
+    GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
+
+    scene = rba.scene
+
     while isopen(screen)
-        if quit
-            quit = false
+        if simparams.quit
+            simparams.quit = false
             break
         end
-        # meshplot.colors = rand(RGBf, 1000)
-        # meshplot[1] = 10 .* rand(Point3f, 1000)
-        rotation_enabled && rotate_cam!(scene, Vec3f(0, 0.001, 0))
-        if event_fname != ""
-            t = t_offset + frame_idx
-            hit_sizes = [show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
-            cherenkov_hits_mesh.markersize = hit_sizes
 
-            hit_sizes = [!show_cherenkov && t >= h.t ? √h.tot/4 : 0 for h ∈ chits]
-            hits_mesh.markersize = hit_sizes
+        rotation_enabled() && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
-            for track ∈ tracks
-                draw!(track, t)
-            end
+        t = simparams.t_offset + simparams.frame_idx
 
-            framecounter.text = "t = $frame_idx ns (offset $t_offset ns)"
+        for (idx, mesh) in enumerate(rba.hits_meshes)
+            isselected = idx == (simparams.hits_selector % length(rba.hits_meshes) + 1)
+            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? √h.tot/4 : 0 for h ∈ rba.hits]
+            mesh.markersize = hit_sizes
         end
+
+        for track ∈ rba.tracks
+            draw!(track, t)
+        end
+
+        rba.infobox.text = generate_infotext()
 
         GLMakie.pollevents(screen)
         GLMakie.render_frame(screen)
 
-        GLFW.SwapBuffers(GLMakie.to_native(screen))
+        GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
 
-        frame_idx += speed
+        if !isstopped()
+            simparams.frame_idx += simparams.speed
+        end
     end
+
     GLMakie.destroy!(screen)
 end
-end
+
+end  # module

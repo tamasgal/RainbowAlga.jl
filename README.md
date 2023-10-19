@@ -42,6 +42,8 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>&rarr;</kbd> | Time step forward                   |
 | <kbd>&uarr;</kbd> | Faster                              |
 | <kbd>&darr;</kbd> | Slower                              |
+| <kbd>,</kbd>      | Decrease ToT cut                    |
+| <kbd>.</kbd>      | Increase ToT cut                    |
 | <kbd>R</kbd>      | Reset time to 0                     |
 | <kbd>A</kbd>      | Toggle auto-rotation                |
 | <kbd>C</kbd>      | Toggle Cherenkov colouring for hits |

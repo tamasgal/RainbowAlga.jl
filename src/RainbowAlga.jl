@@ -11,6 +11,8 @@ using GLFW
 using Corpuscles
 using ColorSchemes
 
+export display3d, RBA
+
 
 include("interactivity.jl")
 
@@ -86,6 +88,32 @@ end
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
 end
+Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
+
+function RBA(detector::Detector; kwargs...)
+    rba = RBA(detector=detector; kwargs...)
+    # TODO: this needs some rework
+    update!(rba.scene, detector)
+    register_keyboard_events(rba.scene)
+    center!(rba.scene)
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector))
+
+
+    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
+    # subwindow.clear = true
+    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
+    # plot!(subwindow, [1, 2, 3], rand(3))
+
+    rba
+end
+
+function display3d(rba::RBA)
+    start_eventloop(rba)
+end
+
+# const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
+
+
 function update!(rba::RBA, hits::Vector{XCalibratedHit})
     positions = generate_hit_positions(hits)
 
@@ -125,10 +153,21 @@ function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit})
 end
 
 function Base.empty!(rba::RBA)
+    for track in rba.tracks
+        delete!(rba.scene, track._lines)
+    end
     empty!(rba.tracks)
     empty!(rba.hits)
+    for hits_mesh in rba.hits_meshes
+        delete!(rba.scene, hits_mesh)
+    end
     empty!(rba.hits_meshes)
     empty!(rba.hits_mesh_descriptions)
+
+    # TODO: this is need to get rid of everything, otherwise "plots" still contains hundreds of elements
+    # Not sure why...
+    empty!(rba.scene.plots)
+    nothing
 end
 
 function add!(rba::RBA, track::Track)
@@ -199,17 +238,12 @@ end
 
 
 """
-Only displays the detector.
-"""
-run(detector_fname::AbstractString) = run(detector_fname, "", 0)
-
-"""
 Run the RainbowAlga GUI and display the specified event.
 """
 function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
     println("Creating scene.")
     det = Detector(detector_fname)
-    rba = RBA(detector=det)
+    rba = RBA(det)
     simparams.frame_idx = 0
     # TODO: this needs some rework
     update!(rba.scene, det)
@@ -249,8 +283,6 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
             end
         end
     end
-
-    register_keyboard_events(rba.scene)
 
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(det))

@@ -5,10 +5,12 @@ function register_keyboard_events(scene::Scene)
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.left)
+            simparams.loop_enabled = false
             simparams.frame_idx -= 200
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.right)
+            simparams.loop_enabled = false
             simparams.frame_idx += 200
             return Consume()
         end
@@ -18,6 +20,10 @@ function register_keyboard_events(scene::Scene)
         end
         if ispressed(scene, Makie.Keyboard.c)
             cycle_hits()
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.l)
+            toggle_loop()
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.up)

@@ -29,7 +29,9 @@ Base.@kwdef mutable struct SimParams
     stopped::Bool = false
     speed::Int = 3
     min_tot::Float64 = 26.0
+    loop_end_frame_idx::Int = 10000
     rotation_enabled::Bool = true
+    loop_enabled::Bool = true
     hits_selector::Int = 0
     quit::Bool = false
 end
@@ -48,6 +50,7 @@ const simparams = SimParams()
 @inline decreasetot(t::Float64) = simparams.min_tot -= t
 @inline speed() = simparams.speed
 @inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
+@inline toggle_loop() = simparams.loop_enabled = !simparams.loop_enabled
 @inline rotation_enabled() = simparams.rotation_enabled
 @inline cycle_hits() = simparams.hits_selector += 1
 
@@ -117,9 +120,14 @@ end
 function update!(rba::RBA, hits::Vector{XCalibratedHit})
     positions = generate_hit_positions(hits)
 
-    t_min, t_max = extrema(h.t for h ∈ triggered(hits))
+    if length(triggered(hits)) == 0
+        t_min, t_max = extrema(h.t for h ∈ hits)
+    else
+        t_min, t_max = extrema(h.t for h ∈ triggered(hits))
+    end
     Δt = t_max - t_min
     simparams.t_offset = t_min
+    simparams.loop_end_frame_idx = Int(ceil(Δt))
 
     cmap = ColorSchemes.hawaii
     hits_mesh = meshscatter!(
@@ -150,6 +158,7 @@ function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit})
     )
 
     push!(rba.hits_meshes, cherenkov_hits_mesh)
+    rba
 end
 
 function Base.empty!(rba::RBA)
@@ -251,14 +260,13 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     println("Loading event data.")
     f = ROOTFile(event_fname)
     if isnothing(f.online)
-        println("No online tree found in file, RainbowAlga currently only supports online events.")
-        exit(1)
+        error("No online tree found in file, RainbowAlga currently only supports online events.")
     end
     event = f.online.events[event_id]
     chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
     update!(rba, chits)
 
-    if !isnothing(f.offline) && hasproperty(f.offline, :events)
+    if !isnothing(f.offline) && length(f.offline) > 0
         println("Loading MC event with event ID $(event.header.trigger_counter + 1)")
         mc_event = f.offline[event.header.trigger_counter + 1]
         length(mc_event.mc_trks) > 0 && println("MC track information found.")
@@ -305,7 +313,7 @@ Generates the text for the infobox on the lower left.
 """
 function generate_infotext()
     lines = String[]
-    push!(lines, "t = $(simparams.frame_idx) ns")
+    push!(lines, "t = $(simparams.frame_idx) ns (loop=$(simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns" simparams.t_offset)
     push!(lines, @sprintf "ToT cut = %.1f" simparams.min_tot)
     join(lines, "\n")
@@ -324,6 +332,11 @@ function start_eventloop(rba)
             simparams.quit = false
             break
         end
+
+        if simparams.loop_enabled && simparams.frame_idx > simparams.loop_end_frame_idx
+            simparams.frame_idx = 0
+        end
+
 
         rotation_enabled() && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 

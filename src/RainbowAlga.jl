@@ -250,12 +250,16 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
     println("Loading event data.")
     f = ROOTFile(event_fname)
+    if isnothing(f.online)
+        println("No online tree found in file, RainbowAlga currently only supports online events.")
+        exit(1)
+    end
     event = f.online.events[event_id]
     chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
     update!(rba, chits)
 
-    if !isnothing(f.offline)
-        @show event.header.trigger_counter + 1
+    if !isnothing(f.offline) && hasproperty(f.offline, :events)
+        println("Loading MC event with event ID $(event.header.trigger_counter + 1)")
         mc_event = f.offline[event.header.trigger_counter + 1]
         length(mc_event.mc_trks) > 0 && println("MC track information found.")
         for mc_track ∈ mc_event.mc_trks

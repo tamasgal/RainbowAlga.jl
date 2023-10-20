@@ -47,6 +47,7 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>R</kbd>      | Reset time to 0           |
 | <kbd>A</kbd>      | Toggle auto-rotation      |
 | <kbd>L</kbd>      | Toggle loop               |
+| <kbd>D</kbd>      | Toggle dark mode          |
 | <kbd>C</kbd>      | Toggle hit colouring mode |
 | <kbd>Space</kbd>  | Play/Pause                |
 | <kbd>Q</kbd>      | Quit                      |

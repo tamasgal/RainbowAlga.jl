@@ -1,4 +1,5 @@
-function register_keyboard_events(scene::Scene)
+function register_keyboard_events(rba::RBA)
+    scene = rba.scene
     on(events(scene).keyboardbutton, priority = 20) do event
         if ispressed(scene, Makie.Keyboard.r)
             reset_time()
@@ -24,6 +25,22 @@ function register_keyboard_events(scene::Scene)
         end
         if ispressed(scene, Makie.Keyboard.l)
             toggle_loop()
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.l)
+            toggle_loop()
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.d)
+            if simparams.darkmode_enabled
+                scene.backgroundcolor = RGBf(0.9, 0.9, 0.9)
+                rba.infobox.color = RGBf(0.1, 0.1, 0.1)
+                simparams.darkmode_enabled = false
+            else
+                scene.backgroundcolor = RGBf(0.0, 0.0, 0.1)
+                simparams.darkmode_enabled = true
+                rba.infobox.color = RGBf(0.9, 0.9, 0.9)
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.up)

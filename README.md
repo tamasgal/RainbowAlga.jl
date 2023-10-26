@@ -26,12 +26,12 @@ julia> import Pkg; Pkg.add("RainbowAlga")
     
 ## Quickstart
 
-The `run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
+The `RainbowAlga.run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
 
 ``` julia
 julia> using RainbowAlga
 
-julia> run("some_detector.detx", "some_online_file.root", 23)
+julia> RainbowAlga.run("some_detector.detx", "some_online_file.root", 23)
 ```
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.

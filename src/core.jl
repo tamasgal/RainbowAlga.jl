@@ -27,9 +27,10 @@ end
 
 @kwdef mutable struct RBA
     detector::Detector
+    rootfile::Union{ROOTFile, Nothing} = nothing
     scene::Scene = Scene(backgroundcolor=RGBf(0.9))
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
-    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), text = "", color=RGBf(0.1, 0.1, 0.1))
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=24, text = "", color=RGBf(0.1, 0.1, 0.1))
     tracks::Vector{Track} = Track[]
     hits::Vector{XCalibratedHit} = XCalibratedHit[]
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}} = []
@@ -90,7 +91,7 @@ function update!(rba::RBA, hits::Vector{XCalibratedHit})
     end
 end
 
-function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit})
+function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit}, particle_name::AbstractString, track_id::Int)
     positions = generate_hit_positions(hits)
 
     cherenkov_photons = cherenkov(track, hits)
@@ -105,6 +106,7 @@ function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit})
     )
 
     push!(rba.hits_meshes, cherenkov_hits_mesh)
+    push!(rba.hits_mesh_descriptions, "Cherenkov wrt. track #$(track_id) ($particle_name)")
     rba
 end
 
@@ -182,7 +184,7 @@ Draws a grid on the XY-plane with an optional `center` point, `span`, grid-`spac
 styling options.
 
 """
-function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.5))
+function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.3))
     min, max = span
     center = Point3f(center)
     for q ∈ range(min, max; step=spacing)
@@ -238,7 +240,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
             if charge(mc_track.type) != 0
                 println("   -> adding Cherenkov hit information")
-                update!(rba, track, chits)
+                update!(rba, track, chits, particle_name, mc_track.id)
             end
         end
     end
@@ -258,16 +260,22 @@ end
 """
 Generates the text for the infobox on the lower left.
 """
-function generate_infotext()
+function update_infotext!(rba)
     lines = String[]
     push!(lines, "t = $(simparams.frame_idx) ns (loop=$(simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns" simparams.t_offset)
-    push!(lines, @sprintf "ToT cut = %.1f" simparams.min_tot)
-    join(lines, "\n")
+    push!(lines, @sprintf "ToT cut = %.1f ns" simparams.min_tot)
+
+    # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
+    # we need to make sure it does not overflow, but we should make this better upstream
+    idx = abs(simparams.hits_selector) % length(rba.hits_meshes) + 1
+    push!(lines, "Colour scheme: $(rba.hits_mesh_descriptions[idx])")
+    
+    rba.infobox.text = join(lines, "\n")
 end
 
 function start_eventloop(rba)
-    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true), rba.scene)
+    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
     glw = screen.glscreen
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
     GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
@@ -290,8 +298,9 @@ function start_eventloop(rba)
         t = simparams.t_offset + simparams.frame_idx
 
         for (idx, mesh) in enumerate(rba.hits_meshes)
-            isselected = idx == (simparams.hits_selector % length(rba.hits_meshes) + 1)
-            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? √h.tot/4 : 0 for h ∈ rba.hits]
+            isselected = idx == (abs(simparams.hits_selector) % length(rba.hits_meshes) + 1)
+            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
+            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling * (h.tot/255)^2 : 0 for h ∈ rba.hits]
             mesh.markersize = hit_sizes
         end
 
@@ -299,7 +308,7 @@ function start_eventloop(rba)
             draw!(track, t)
         end
 
-        rba.infobox.text = generate_infotext()
+        update_infotext!(rba)
 
         GLMakie.pollevents(screen)
         GLMakie.render_frame(screen)

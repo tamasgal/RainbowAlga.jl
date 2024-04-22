@@ -5,6 +5,10 @@ function register_keyboard_events(rba::RBA)
             reset_time()
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard.space)
+            simparams.stopped = !simparams.stopped
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.left)
             simparams.loop_enabled = false
             simparams.frame_idx -= 200
@@ -19,8 +23,12 @@ function register_keyboard_events(rba::RBA)
             toggle_rotation()
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard.c & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            previous_hits_colouring()
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.c)
-            cycle_hits()
+            next_hits_colouring()
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.l)
@@ -59,11 +67,13 @@ function register_keyboard_events(rba::RBA)
             increasetot(0.5)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.space)
-            if isstopped()
-                start()
-            else
-                stop()
+        if ispressed(scene, Makie.Keyboard.i)
+            simparams.hit_scaling += 1
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.u)
+            if simparams.hit_scaling > 1
+                simparams.hit_scaling -= 1
             end
             return Consume()
         end

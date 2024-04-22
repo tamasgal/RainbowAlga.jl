@@ -16,6 +16,7 @@ Base.@kwdef mutable struct SimParams
     loop_enabled::Bool = true
     darkmode_enabled::Bool = false
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
+    hit_scaling::Int = 1  # factor to multiply the size of the hits
     quit::Bool = false
 end
 
@@ -35,4 +36,5 @@ const simparams = SimParams()
 @inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
 @inline toggle_loop() = simparams.loop_enabled = !simparams.loop_enabled
 @inline rotation_enabled() = simparams.rotation_enabled
-@inline cycle_hits() = simparams.hits_selector += 1
+@inline next_hits_colouring() = simparams.hits_selector += 1
+@inline previous_hits_colouring() = simparams.hits_selector -= 1

@@ -17,6 +17,7 @@ Base.@kwdef mutable struct SimParams
     darkmode_enabled::Bool = false
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
     hit_scaling::Int = 1  # factor to multiply the size of the hits
+    fps::Int = 24  # framews per second
     quit::Bool = false
 end
 

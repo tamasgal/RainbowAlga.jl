@@ -283,6 +283,8 @@ function start_eventloop(rba)
     scene = rba.scene
 
     while isopen(screen)
+        frame_start = time()
+
         if simparams.quit
             simparams.quit = false
             break
@@ -317,6 +319,14 @@ function start_eventloop(rba)
 
         if !isstopped()
             simparams.frame_idx += simparams.speed
+        end
+
+        yield()
+
+        Δt = time() - frame_start
+        sleep_time = 1.0/simparams.fps - Δt
+        if sleep_time > 0
+            sleep(sleep_time)
         end
     end
 

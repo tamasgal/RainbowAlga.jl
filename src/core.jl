@@ -159,7 +159,7 @@ function update!(scene::Scene, det::Detector)
     basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
     for m ∈ det
         if !isbasemodule(m)
-            mesh!(scene, Sphere(Point3f(m.pos), 1.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
+            mesh!(scene, Sphere(Point3f(m.pos), 2.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
         end
     end
     basemodules = [m for m ∈ det if isbasemodule(m)]

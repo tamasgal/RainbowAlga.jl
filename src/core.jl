@@ -307,8 +307,8 @@ function start_eventloop(rba)
 
         for (idx, mesh) in enumerate(rba.hits_meshes)
             isselected = idx == (abs(simparams.hits_selector) % length(rba.hits_meshes) + 1)
-            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
-            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling * (h.tot/255)^2 : 0 for h ∈ rba.hits]
+            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
+            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
             mesh.markersize = hit_sizes
         end
 

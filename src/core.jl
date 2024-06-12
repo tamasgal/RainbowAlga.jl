@@ -132,18 +132,24 @@ function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
 
+"""
+
+Generate hit positions for each hit, stacking them on top of each other along the PMT axis
+when the same PMT is hit multiple times.
+
+"""
 function generate_hit_positions(hits)
-    pmt_map = Dict{Location, Int}()
+    pmt_map = Dict{Tuple{Int, Int, Int}, Int}()
     pos = Point3f[]
     for hit ∈ hits
-        loc = Location(hit.string, hit.floor)
+        loc = (hit.string, hit.floor, hit.channel_id)
         if !(loc ∈ keys(pmt_map))
             pmt_map[loc] = 0
         else
             pmt_map[loc] += 1
         end
         i = pmt_map[loc]
-        push!(pos, Point3f(hit.pos + hit.dir*10 + hit.dir/8*i))
+        push!(pos, Point3f(hit.pos + hit.dir*5 + hit.dir/2*i))
     end
     pos
 end

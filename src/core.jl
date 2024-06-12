@@ -30,7 +30,7 @@ end
     rootfile::Union{ROOTFile, Nothing} = nothing
     scene::Scene = Scene(backgroundcolor=RGBf(0.9))
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
-    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=24, text = "", color=RGBf(0.1, 0.1, 0.1))
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hits::Vector{XCalibratedHit} = XCalibratedHit[]
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}} = []

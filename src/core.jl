@@ -44,7 +44,7 @@ function RBA(detector::Detector; kwargs...)
     update!(rba.scene, detector)
     register_keyboard_events(rba)
     center!(rba.scene)
-    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector))
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
 
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
@@ -246,7 +246,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     end
 
     center!(rba.scene)
-    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(det))
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(det), Vec3f(0, 0, 1))
 
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)

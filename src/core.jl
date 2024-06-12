@@ -42,7 +42,7 @@ function RBA(detector::Detector; kwargs...)
     rba = RBA(detector=detector; kwargs...)
     # TODO: this needs some rework
     update!(rba.scene, detector)
-    register_keyboard_events(rba)
+    register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
 

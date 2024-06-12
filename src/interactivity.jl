@@ -1,5 +1,19 @@
-function register_keyboard_events(rba::RBA)
+"""
+    register_events(rba::RBA)
+
+Registers keyboard and mouse events for the interactive access.
+"""
+function register_events(rba::RBA)
     scene = rba.scene
+    on(events(scene).mousebutton) do event
+        # if scene.events.hasfocus[]
+        #     println("focus")
+        #     simparams.fps = 60
+        # else
+        #     println("no focus")
+        #     simparams.fps = 15
+        # end
+    end
     on(events(scene).keyboardbutton, priority = 20) do event
         if ispressed(scene, Makie.Keyboard.r)
             reset_time()

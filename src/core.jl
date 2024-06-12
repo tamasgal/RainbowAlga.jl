@@ -56,12 +56,17 @@ function RBA(detector::Detector; kwargs...)
 end
 
 function display3d(rba::RBA)
-    start_eventloop(rba)
+    Threads.@spawn start_eventloop(rba)
 end
 
 # const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
 
 
+"""
+
+Adds hits to the scene.
+
+"""
 function update!(rba::RBA, hits::Vector{XCalibratedHit})
     positions = generate_hit_positions(hits)
 
@@ -260,7 +265,8 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    start_eventloop(rba)
+    Threads.@spawn start_eventloop(rba)
+    rba
 end
 
 """

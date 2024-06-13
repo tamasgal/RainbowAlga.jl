@@ -3,7 +3,15 @@ Base.@kwdef mutable struct DisplayParams
     size::Tuple{Int, Int} = (600, 600)
 end
 
-const displayparams = DisplayParams()
+const displayparams = let m = GLFW.GetVideoMode(GLFW.GetPrimaryMonitor())
+    width = Int(round(m.width * 0.6))
+    height = Int(round(m.height * 0.6))
+    DisplayParams(
+        # pos = (Int(round(m.width - width / 2)), Int(round(m.height - height / 2))),
+        pos = (100, 100),
+        size = (width, height)
+    )
+end
 
 Base.@kwdef mutable struct SimParams
     frame_idx::Int = 0

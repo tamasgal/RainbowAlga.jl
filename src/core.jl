@@ -6,7 +6,7 @@ struct Track
     dir::Direction{Float64}
     v::Float64
     t::Float64
-    _lines::Lines{Tuple{Vector{Point{3, Float32}}}}
+    _lines::Lines{Tuple{Vector{Point{3, Float64}}}}
 
     function Track(scene, pos, dir, v, t; color=RGBf(1, 0.2, 0))
         _lines = lines!(scene, [pos, pos], color=color)
@@ -32,8 +32,8 @@ end
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
-    hits::Vector{XCalibratedHit} = XCalibratedHit[]
-    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}} = []
+    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
+    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
@@ -67,7 +67,7 @@ end
 Adds hits to the scene.
 
 """
-function update!(rba::RBA, hits::Vector{XCalibratedHit})
+function update!(rba::RBA, hits)
     positions = generate_hit_positions(hits)
 
     if length(triggered(hits)) == 0
@@ -96,7 +96,7 @@ function update!(rba::RBA, hits::Vector{XCalibratedHit})
     end
 end
 
-function update!(rba::RBA, track::Track, hits::Vector{XCalibratedHit}, particle_name::AbstractString, track_id::Int)
+function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, track_id::Int)
     positions = generate_hit_positions(hits)
 
     cherenkov_photons = cherenkov(track, hits)
@@ -144,27 +144,27 @@ when the same PMT is hit multiple times.
 
 """
 function generate_hit_positions(hits)
-    pmt_map = Dict{Tuple{Int, Int, Int}, Int}()
-    pos = Point3f[]
+    pmt_map = Dict{Tuple{Int, Int}, Int}()
+    pos = Point3d[]
     for hit ∈ hits
-        loc = (hit.string, hit.floor, hit.channel_id)
+        loc = (hit.dom_id, hit.channel_id)
         if !(loc ∈ keys(pmt_map))
             pmt_map[loc] = 0
         else
             pmt_map[loc] += 1
         end
         i = pmt_map[loc]
-        push!(pos, Point3f(hit.pos + hit.dir*5 + hit.dir/2*i))
+        push!(pos, Point3d(hit.pos + hit.dir*5 + hit.dir/2*i))
     end
     pos
 end
 
 function update!(scene::Scene, det::Detector)
     det_center = center(det)
-    basegrid!(scene; center=Point3f(det_center[1], det_center[2], 0))
+    basegrid!(scene; center=Point3d(det_center[1], det_center[2], 0))
     for m ∈ det
         if !isbasemodule(m)
-            mesh!(scene, Sphere(Point3f(m.pos), 2.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
+            mesh!(scene, Sphere(Point3d(m.pos), 2.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
         end
     end
     basemodules = [m for m ∈ det if isbasemodule(m)]
@@ -180,10 +180,10 @@ function update!(scene::Scene, det::Detector)
         sort!(modules, by=m->m.location.floor)
         segments = [m.pos for m in modules]
         top_module = modules[end]
-        buoy_pos = top_module.pos + Point3f(0, 0, 100)
+        buoy_pos = top_module.pos + Point3d(0, 0, 100)
         push!(segments, buoy_pos)
         lines!(scene, segments; color=:grey, linewidth=1)
-        mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow, alpha=0.3)
+        mesh!(scene, Sphere(Point3d(buoy_pos), 7), color=:yellow, alpha=0.3)
     end
 
     scene
@@ -197,10 +197,10 @@ styling options.
 """
 function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.3))
     min, max = span
-    center = Point3f(center)
+    center = Point3d(center)
     for q ∈ range(min, max; step=spacing)
-        lines!(scene, [Point3f(q, min, 0) + center, Point3f(q, max, 0) + center], color=color, linewidth=linewidth)
-        lines!(scene, [Point3f(min, q, 0) + center, Point3f(max, q, 0) + center], color=color, linewidth=linewidth)
+        lines!(scene, [Point3d(q, min, 0) + center, Point3d(q, max, 0) + center], color=color, linewidth=linewidth)
+        lines!(scene, [Point3d(min, q, 0) + center, Point3d(max, q, 0) + center], color=color, linewidth=linewidth)
     end
     scene
 end
@@ -209,7 +209,7 @@ end
 """
 Run the RainbowAlga GUI and display the specified event.
 """
-function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int)
+function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int; tree=:online)
     println("Creating scene.")
     det = Detector(detector_fname)
     rba = RBA(det)
@@ -219,24 +219,56 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
 
     println("Loading event data.")
     f = ROOTFile(event_fname)
-    if isnothing(f.online)
-        error("No online tree found in file, RainbowAlga currently only supports online events.")
+    if tree == :online
+        if isnothing(f.online)
+            error("No online tree found in file.")
+        end
+        event = f.online.events[event_id]
+        chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
+    elseif tree == :offline
+        if isnothing(f.offline)
+            error("No offline tree found in file.")
+        end
+        event = f.offline[event_id]
+        chits = event.hits
+    else
+        error("Only the :offline or :online trees are supported.")
     end
-    event = f.online.events[event_id]
-    chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
     update!(rba, chits)
 
     if !isnothing(f.offline) && length(f.offline) > 0
-        println("Loading MC event with event ID $(event.header.trigger_counter + 1)")
-        mc_event = f.offline[event.header.trigger_counter + 1]
-        length(mc_event.mc_trks) > 0 && println("MC track information found.")
-        for mc_track ∈ mc_event.mc_trks
+        if tree == :online
+            println("Loading matching offline event (MC) with event ID $(event.header.trigger_counter + 1)")
+            offline_event = f.offline[event.header.trigger_counter + 1]
+        else
+            offline_event = event
+        end
+
+        if length(offline_event.trks) > 0
+            println("Reconstruction information found, adding the best candidates")
+            reco = bestjppmuon(offline_event)
+            if !ismissing(reco)
+                println("  adding best Jpp muon")
+                track = Track(rba.scene, reco.pos, reco.dir, KM3io.Constants.c, reco.t; color=RGBf(5/255, 176/255, 255/255))
+                add!(rba, track)
+                update!(rba, track, chits, "Jpp muon (lik = $(reco.lik))", reco.id)
+            end
+        end
+
+        length(offline_event.mc_trks) > 0 && println("MC track information found.")
+        for mc_track ∈ offline_event.mc_trks
             !islepton(mc_track.type) && continue
 
             particle_name = Particle(mc_track.type).name
 
             println("  found a lepton: $(particle_name)")
-            track_t = mc_event.mc_t - (event.header.frame_index - 1) * 100e6
+
+            if tree == :online
+                track_t = offline_event.mc_t - (event.header.frame_index - 1) * 100e6
+            else
+                track_t = mc_track.t
+            end
+
             if !isnothing(match(r"nu(.+)", particle_name))
                 color = RGBf(1.0, 0.2, 0)
             else
@@ -265,7 +297,7 @@ function run(detector_fname::AbstractString, event_fname::AbstractString, event_
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    Threads.@spawn start_eventloop(rba)
+    Threads.@spawn :interactive start_eventloop(rba)
     rba
 end
 

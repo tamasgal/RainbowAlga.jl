@@ -24,28 +24,44 @@ function draw!(track::Track, t)
     track
 end
 
+struct Hit
+    pos::Position{Float64}
+    dir::Direction{Float64}
+end
+
+"""
+
+Container for hits including the mesh scatter and a description.
+
+"""
+struct HitsCloud
+    hits::Vector{Hit}
+    mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}
+    description::String
+end
+
 
 @kwdef mutable struct RBA
-    detector::Detector
-    rootfile::Union{ROOTFile, Nothing} = nothing
     scene::Scene = Scene(backgroundcolor=RGBf(0.9))
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
-    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
-    hits_mesh_descriptions::Vector{String} = []
+    hitsclouds::Vector{HitsCloud} = HitsCloud[]
+    center::Point3d = Point3d(0.0, 0.0, 0.0)
+   # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
+   # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
+   # hits_mesh_descriptions::Vector{String} = []
+    _plots::Dict{String, Any} = Dict()
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
 function RBA(detector::Detector; kwargs...)
-    rba = RBA(detector=detector; kwargs...)
-    # TODO: this needs some rework
-    update!(rba.scene, detector)
+    rba = RBA(kwargs...)
+
+    update!(rba, detector)
     register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
-
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
     # subwindow.clear = true
@@ -67,7 +83,7 @@ end
 Adds hits to the scene.
 
 """
-function update!(rba::RBA, hits)
+function update!(rba::RBA, hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
     positions = generate_hit_positions(hits)
 
     if length(triggered(hits)) == 0
@@ -79,7 +95,7 @@ function update!(rba::RBA, hits)
     simparams.t_offset = t_min
     simparams.loop_end_frame_idx = Int(ceil(Δt))
 
-    rba.hits = hits
+    # rba.hits = hits
 
     for colorscheme in (:hawaii, :managua, :roma)
         cmap = getproperty(ColorSchemes, colorscheme)
@@ -90,9 +106,10 @@ function update!(rba::RBA, hits)
             markersize = [0 for _ ∈ hits],
             alpha = 0.5,
         )
+        push!(rba.hitsclouds, HitsCloud([], hits_mesh, string(colorscheme)))
 
-        push!(rba.hits_meshes, hits_mesh)
-        push!(rba.hits_mesh_descriptions, string(colorscheme))
+        # push!(rba.hits_meshes, hits_mesh)
+        # push!(rba.hits_mesh_descriptions, string(colorscheme))
     end
 end
 
@@ -110,8 +127,7 @@ function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, tr
         alpha = 0.5,
     )
 
-    push!(rba.hits_meshes, cherenkov_hits_mesh)
-    push!(rba.hits_mesh_descriptions, "Cherenkov wrt. track #$(track_id) ($particle_name)")
+    push!(rba.hitsclouds, HitsCloud([], cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
     rba
 end
 
@@ -159,22 +175,42 @@ function generate_hit_positions(hits)
     pos
 end
 
-function update!(scene::Scene, det::Detector)
+
+function update!(rba::RBA, det::Detector)
+    scene = rba.scene
     det_center = center(det)
-    basegrid!(scene; center=Point3d(det_center[1], det_center[2], 0))
-    for m ∈ det
-        if !isbasemodule(m)
-            mesh!(scene, Sphere(Point3d(m.pos), 2.5), color=RGBAf(0.3, 0.3, 0.3, 0.5))
+    rba.center = det_center
+
+    if "Basegrid" in keys(rba._plots)
+        for element in rba._plots["Basegrid"]
+            element in scene && delete!(rba.scene, element)
+        end
+        delete!(rba._plots, "Basegrid")
+    end
+    basegrid!(rba; center=Point3d(det_center[1], det_center[2], 0))
+
+    if "Detector" in keys(rba._plots)
+        for element in rba._plots["Detector"]
+            element in scene && delete!(rba.scene, element)
         end
     end
+    plots = rba._plots["Detector"] = []
+
+    opticalmodules = [m for m in det if isopticalmodule(m)]
+    push!(plots, meshscatter!(
+        scene,
+        [m.pos for m ∈ opticalmodules],
+        markersize=2.5,
+        color=RGBAf(0.3, 0.3, 0.3, 0.5)
+    ))
     basemodules = [m for m ∈ det if isbasemodule(m)]
-    meshscatter!(
+    push!(plots, meshscatter!(
         scene,
         [m.pos for m ∈ basemodules],
         marker=Rect3f(Vec3f(-0.5), Vec3f(0.5)),
         markersize=5,
         color=:black
-    )
+    ))
     for string ∈ det.strings
         modules = filter(m->m.location.string == string, collect(values(det.modules)))
         sort!(modules, by=m->m.location.floor)
@@ -182,11 +218,11 @@ function update!(scene::Scene, det::Detector)
         top_module = modules[end]
         buoy_pos = top_module.pos + Point3d(0, 0, 100)
         push!(segments, buoy_pos)
-        lines!(scene, segments; color=:grey, linewidth=1)
-        mesh!(scene, Sphere(Point3d(buoy_pos), 7), color=:yellow, alpha=0.3)
+        push!(plots, lines!(scene, segments; color=:grey, linewidth=1))
+        push!(plots, mesh!(scene, Sphere(Point3d(buoy_pos), 7), color=:yellow, alpha=0.3))
     end
 
-    scene
+    rba
 end
 
 """
@@ -195,109 +231,89 @@ Draws a grid on the XY-plane with an optional `center` point, `span`, grid-`spac
 styling options.
 
 """
-function basegrid!(scene; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.3))
+function basegrid!(rba; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.3))
+    scene = rba.scene
     min, max = span
     center = Point3d(center)
+    plots = rba._plots["Basegrid"] = []
     for q ∈ range(min, max; step=spacing)
-        lines!(scene, [Point3d(q, min, 0) + center, Point3d(q, max, 0) + center], color=color, linewidth=linewidth)
-        lines!(scene, [Point3d(min, q, 0) + center, Point3d(max, q, 0) + center], color=color, linewidth=linewidth)
+        push!(plots, lines!(scene, [Point3d(q, min, 0) + center, Point3d(q, max, 0) + center], color=color, linewidth=linewidth))
+        push!(plots, lines!(scene, [Point3d(min, q, 0) + center, Point3d(max, q, 0) + center], color=color, linewidth=linewidth))
     end
     scene
 end
 
+function run(rba::RBA)
+    register_events(rba)
+    center!(rba.scene)
+    @show rba.center
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
+    Threads.@spawn :interactive start_eventloop(rba)
+    # start_eventloop(rba)
+    rba
+end
 
 """
 Run the RainbowAlga GUI and display the specified event.
 """
-function run(detector_fname::AbstractString, event_fname::AbstractString, event_id::Int; tree=:online)
-    println("Creating scene.")
-    det = Detector(detector_fname)
-    rba = RBA(det)
+function display!(rba::RBA, event::Evt)
     simparams.frame_idx = 0
-    # TODO: this needs some rework
-    update!(rba.scene, det)
 
-    println("Loading event data.")
-    f = ROOTFile(event_fname)
-    if tree == :online
-        if isnothing(f.online)
-            error("No online tree found in file.")
-        end
-        event = f.online.events[event_id]
-        chits = calibrate(det, combine(event.snapshot_hits, event.triggered_hits))
-    elseif tree == :offline
-        if isnothing(f.offline)
-            error("No offline tree found in file.")
-        end
-        event = f.offline[event_id]
-        chits = event.hits
-    else
-        error("Only the :offline or :online trees are supported.")
-    end
+    chits = event.hits
     update!(rba, chits)
 
-    if !isnothing(f.offline) && length(f.offline) > 0
-        if tree == :online
-            println("Loading matching offline event (MC) with event ID $(event.header.trigger_counter + 1)")
-            offline_event = f.offline[event.header.trigger_counter + 1]
-        else
-            offline_event = event
-        end
-
-        if length(offline_event.trks) > 0
-            println("Reconstruction information found, adding the best candidates")
-            reco = bestjppmuon(offline_event)
-            if !ismissing(reco)
-                println("  adding best Jpp muon")
-                track = Track(rba.scene, reco.pos, reco.dir, KM3io.Constants.c, reco.t; color=RGBf(5/255, 176/255, 255/255))
-                add!(rba, track)
-                update!(rba, track, chits, "Jpp muon (lik = $(reco.lik))", reco.id)
-            end
-        end
-
-        length(offline_event.mc_trks) > 0 && println("MC track information found.")
-        for mc_track ∈ offline_event.mc_trks
-            !islepton(mc_track.type) && continue
-
-            particle_name = Particle(mc_track.type).name
-
-            println("  found a lepton: $(particle_name)")
-
-            if tree == :online
-                track_t = offline_event.mc_t - (event.header.frame_index - 1) * 100e6
-            else
-                track_t = mc_track.t
-            end
-
-            if !isnothing(match(r"nu(.+)", particle_name))
-                color = RGBf(1.0, 0.2, 0)
-            else
-                color = RGBf(0.0, 0.8, 0.7)
-            end
-
-            # track = Track(rba.scene, mc_track.pos - mc_track.dir * abs(mc_track.len), mc_track.dir, KM3io.Constants.c, track_t; color=color)
-            track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, track_t; color=color)
-            # TODO: rba.scene should not be needed
+    if length(event.trks) > 0
+        println("Reconstruction information found, adding the best candidates")
+        reco = bestjppmuon(event)
+        if !ismissing(reco)
+            println("  adding best Jpp muon")
+            track = Track(rba.scene, reco.pos, reco.dir, KM3io.Constants.c, reco.t; color=RGBf(5/255, 176/255, 255/255))
             add!(rba, track)
+            update!(rba, track, chits, "Jpp muon (lik = $(reco.lik))", reco.id)
+        end
+    end
+
+    length(event.mc_trks) > 0 && println("MC track information found.")
+    for mc_track ∈ event.mc_trks
+        !islepton(mc_track.type) && continue
+
+        particle_name = Particle(mc_track.type).name
+
+        println("  found a lepton: $(particle_name)")
+
+        if tree == :online
+            track_t = event.mc_t - (event.header.frame_index - 1) * 100e6
+        else
+            track_t = mc_track.t
+        end
+
+        if !isnothing(match(r"nu(.+)", particle_name))
+            color = RGBf(1.0, 0.2, 0)
+        else
+            color = RGBf(0.0, 0.8, 0.7)
+        end
+
+        # track = Track(rba.scene, mc_track.pos - mc_track.dir * abs(mc_track.len), mc_track.dir, KM3io.Constants.c, track_t; color=color)
+        track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, track_t; color=color)
+        # TODO: rba.scene should not be needed
+        add!(rba, track)
 
 
-            if charge(mc_track.type) != 0
-                println("   -> adding Cherenkov hit information")
-                update!(rba, track, chits, particle_name, mc_track.id)
-            end
+        if charge(mc_track.type) != 0
+            println("   -> adding Cherenkov hit information")
+            update!(rba, track, chits, particle_name, mc_track.id)
         end
     end
 
     center!(rba.scene)
-    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(det), Vec3f(0, 0, 1))
-
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
 
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
     # subwindow.clear = true
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    Threads.@spawn :interactive start_eventloop(rba)
+    # Threads.@spawn :interactive start_eventloop(rba)
     rba
 end
 
@@ -312,8 +328,8 @@ function update_infotext!(rba)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream
-    idx = abs(simparams.hits_selector) % length(rba.hits_meshes) + 1
-    push!(lines, "Colour scheme: $(rba.hits_mesh_descriptions[idx])")
+    # idx = abs(simparams.hits_selector) % length(rba.hits_meshes) + 1
+    # push!(lines, "Colour scheme: $(rba.hits_mesh_descriptions[idx])")
     
     rba.infobox.text = join(lines, "\n")
 end
@@ -343,11 +359,16 @@ function start_eventloop(rba)
 
         t = simparams.t_offset + simparams.frame_idx
 
-        for (idx, mesh) in enumerate(rba.hits_meshes)
-            isselected = idx == (abs(simparams.hits_selector) % length(rba.hits_meshes) + 1)
-            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
-            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
-            mesh.markersize = hit_sizes
+        # for (idx, mesh) in enumerate(rba.hits_meshes)
+        #     isselected = idx == (abs(simparams.hits_selector) % length(rba.hits_meshes) + 1)
+        #     # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
+        #     hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
+        #     mesh.markersize = hit_sizes
+        # end
+        for hitscloud in enumerate(rba.hitsclouds)
+            isselected = idx == (abs(simparams.hits_selector) % length(rba.hitsclouds) + 1)
+            #hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
+            hitscloud.mesh.markersize = 5
         end
 
         for track ∈ rba.tracks

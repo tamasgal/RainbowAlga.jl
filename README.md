@@ -29,10 +29,18 @@ julia> import Pkg; Pkg.add("RainbowAlga")
 The `RainbowAlga.run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
 
 ``` julia
-julia> using RainbowAlga
+julia> using RainbowAlga, KM3io, KM3NeTTestData
 
-julia> RainbowAlga.run("some_detector.detx", "some_online_file.root", 23)
+julia> RainbowAlga.run()  # opens the 3D display with the default KM3NeT detector
 ```
+
+You can replace the detector by calling `update!`
+
+```julia
+julia> update!(Detector(datapath("detx", "KM3NeT_00000133_20221025.detx")))
+```
+
+## Keybindings
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.
 

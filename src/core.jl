@@ -85,8 +85,8 @@ end
 Adds hits to the scene.
 
 """
-function update!(rba::RBA, hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
-    positions = generate_hit_positions(hits)
+function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+    positions = generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 
     if length(triggered(hits)) == 0
         t_min, t_max = extrema(h.t for h ∈ hits)
@@ -115,7 +115,9 @@ function update!(rba::RBA, hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, 
         # push!(rba.hits_mesh_descriptions, string(colorscheme))
     end
 end
-update!(hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}} = update!(_rba, hits)
+function update!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+    update!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+end
 
 function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, track_id::Int)
     positions = generate_hit_positions(hits)
@@ -163,7 +165,7 @@ Generate hit positions for each hit, stacking them on top of each other along th
 when the same PMT is hit multiple times.
 
 """
-function generate_hit_positions(hits)
+function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
     pmt_map = Dict{Tuple{Int, Int}, Int}()
     pos = Point3d[]
     for hit ∈ hits
@@ -174,7 +176,7 @@ function generate_hit_positions(hits)
             pmt_map[loc] += 1
         end
         i = pmt_map[loc]
-        push!(pos, Point3d(hit.pos + hit.dir*5 + hit.dir/2*i))
+        push!(pos, Point3d(hit.pos + hit.dir*pmt_distance + hit.dir/hit_distance*i))
     end
     pos
 end

@@ -341,9 +341,11 @@ function update_infotext!(rba)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream
-    idx = abs(simparams.hits_selector) % length(rba.hitsclouds) + 1
-    push!(lines, "Colour scheme: $(rba.hitsclouds[idx].description)")
-    
+    if length(rba.hitsclouds) > 0
+        idx = abs(simparams.hits_selector) % length(rba.hitsclouds) + 1
+        push!(lines, "Colour scheme: $(rba.hitsclouds[idx].description)")
+    end
+
     rba.infobox.text = join(lines, "\n")
 end
 

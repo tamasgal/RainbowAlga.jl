@@ -253,7 +253,7 @@ function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewi
     scene
 end
 
-function run(rba::RBA; interactive=false)
+function run(rba::RBA; interactive=true)
     register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
@@ -264,7 +264,7 @@ function run(rba::RBA; interactive=false)
     end
     nothing
 end
-run(;interactive=false) = run(_rba; interactive=interactive)
+run(;interactive=true) = run(_rba; interactive=interactive)
 
 """
 Run the RainbowAlga GUI and display the specified event.

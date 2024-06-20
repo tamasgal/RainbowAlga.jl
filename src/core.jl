@@ -27,6 +27,8 @@ end
 struct Hit
     pos::Position{Float64}
     dir::Direction{Float64}
+    tot::Float64
+    t::Float64
 end
 
 """
@@ -106,12 +108,14 @@ function update!(rba::RBA, hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, 
             markersize = [0 for _ ∈ hits],
             alpha = 0.5,
         )
-        push!(rba.hitsclouds, HitsCloud([], hits_mesh, string(colorscheme)))
+        rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
+        push!(rba.hitsclouds, HitsCloud(rbahits, hits_mesh, string(colorscheme)))
 
         # push!(rba.hits_meshes, hits_mesh)
         # push!(rba.hits_mesh_descriptions, string(colorscheme))
     end
 end
+update!(hits::T) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}} = update!(_rba, hits)
 
 function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, track_id::Int)
     positions = generate_hit_positions(hits)
@@ -222,8 +226,12 @@ function update!(rba::RBA, det::Detector)
         push!(plots, mesh!(scene, Sphere(Point3d(buoy_pos), 7), color=:yellow, alpha=0.3))
     end
 
+    center!(rba.scene)
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
+
     rba
 end
+update!(d::Detector) = update!(_rba, d)
 
 """
 
@@ -231,7 +239,7 @@ Draws a grid on the XY-plane with an optional `center` point, `span`, grid-`spac
 styling options.
 
 """
-function basegrid!(rba; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidth=1, color=(:grey, 0.3))
+function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewidth=1, color=(:grey, 0.3))
     scene = rba.scene
     min, max = span
     center = Point3d(center)
@@ -243,15 +251,18 @@ function basegrid!(rba; center=(0, 0, 0), span=(-500, 500), spacing=50, linewidt
     scene
 end
 
-function run(rba::RBA)
+function run(rba::RBA; interactive=false)
     register_events(rba)
     center!(rba.scene)
-    @show rba.center
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
-    Threads.@spawn :interactive start_eventloop(rba)
-    # start_eventloop(rba)
-    rba
+    if interactive
+        Threads.@spawn :interactive start_eventloop(rba)
+    else
+        start_eventloop(rba)
+    end
+    nothing
 end
+run(;interactive=false) = run(_rba; interactive=interactive)
 
 """
 Run the RainbowAlga GUI and display the specified event.
@@ -328,8 +339,8 @@ function update_infotext!(rba)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream
-    # idx = abs(simparams.hits_selector) % length(rba.hits_meshes) + 1
-    # push!(lines, "Colour scheme: $(rba.hits_mesh_descriptions[idx])")
+    idx = abs(simparams.hits_selector) % length(rba.hitsclouds) + 1
+    push!(lines, "Colour scheme: $(rba.hitsclouds[idx].description)")
     
     rba.infobox.text = join(lines, "\n")
 end
@@ -365,10 +376,11 @@ function start_eventloop(rba)
         #     hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
         #     mesh.markersize = hit_sizes
         # end
-        for hitscloud in enumerate(rba.hitsclouds)
+        for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(simparams.hits_selector) % length(rba.hitsclouds) + 1)
-            #hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
-            hitscloud.mesh.markersize = 5
+            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
+            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? 10 : 0 for h in hitscloud.hits]
+            hitscloud.mesh.markersize = hit_sizes
         end
 
         for track ∈ rba.tracks

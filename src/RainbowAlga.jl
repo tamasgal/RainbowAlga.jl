@@ -11,7 +11,7 @@ using GLFW
 using Corpuscles
 using ColorSchemes
 
-export run, update!
+export update!, clearhits!
 
 include("params.jl")
 include("core.jl")

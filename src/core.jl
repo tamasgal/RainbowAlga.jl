@@ -38,8 +38,12 @@ Container for hits including the mesh scatter and a description.
 """
 struct HitsCloud
     hits::Vector{Hit}
-    mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}
+    positions::Observable{Vector{GeometryBasics.Point{3, Float32}}}
+    mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}
     description::String
+end
+function Base.show(io::IO, h::HitsCloud)
+    print(io, "HitsCloud '$(h.description)' ($(length(h.hits)) hits)")
 end
 
 
@@ -49,7 +53,7 @@ end
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
-    center::Point3d = Point3d(0.0, 0.0, 0.0)
+    center::Point3f = Point3f(0.0, 0.0, 0.0)
    # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
    # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
    # hits_mesh_descriptions::Vector{String} = []
@@ -85,8 +89,9 @@ end
 Adds hits to the scene.
 
 """
-function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
-    positions = generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+
+    positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
 
     if length(triggered(hits)) == 0
         t_min, t_max = extrema(h.t for h ∈ hits)
@@ -99,28 +104,30 @@ function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2) where T<:Uni
 
     # rba.hits = hits
 
-    for colorscheme in (:hawaii, :managua, :roma)
-        cmap = getproperty(ColorSchemes, colorscheme)
-        hits_mesh = meshscatter!(
-            rba.scene,
-            positions,
-            color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ hits],
-            markersize = [0 for _ ∈ hits],
-            alpha = 0.5,
-        )
-        rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
-        push!(rba.hitsclouds, HitsCloud(rbahits, hits_mesh, string(colorscheme)))
-
-        # push!(rba.hits_meshes, hits_mesh)
-        # push!(rba.hits_mesh_descriptions, string(colorscheme))
-    end
+    cmap = getproperty(ColorSchemes, colorscheme)
+    hits_mesh = meshscatter!(
+        rba.scene,
+        positions,
+        color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ hits],
+        markersize = [0 for _ ∈ hits],
+        alpha = 0.8,
+    )
+    rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
+    push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
 end
 function update!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
     update!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
+function clearhits!(rba::RBA)
+    for hitscloud in rba.hitsclouds
+        hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
+    end
+    empty!(rba.hitsclouds)
+end
+clearhits!() = clearhits!(_rba)
 
 function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, track_id::Int)
-    positions = generate_hit_positions(hits)
+    positions = Observable(generate_hit_positions(hits))
 
     cherenkov_photons = cherenkov(track, hits)
 
@@ -133,7 +140,7 @@ function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, tr
         alpha = 0.5,
     )
 
-    push!(rba.hitsclouds, HitsCloud([], cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
+    push!(rba.hitsclouds, HitsCloud([], positions, cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
     rba
 end
 
@@ -158,6 +165,7 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
+add!(track::Track) = add!(_rba, track)
 
 """
 
@@ -167,7 +175,7 @@ when the same PMT is hit multiple times.
 """
 function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
     pmt_map = Dict{Tuple{Int, Int}, Int}()
-    pos = Point3d[]
+    pos = Point3f[]
     for hit ∈ hits
         loc = (hit.dom_id, hit.channel_id)
         if !(loc ∈ keys(pmt_map))
@@ -176,7 +184,8 @@ function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
             pmt_map[loc] += 1
         end
         i = pmt_map[loc]
-        push!(pos, Point3d(hit.pos + hit.dir*pmt_distance + hit.dir/hit_distance*i))
+        push!(pos, Point3f(hit.pos + hit.dir*(pmt_distance + hit_distance*i)))
+        # push!(pos, Point3f(hit.pos + hit.dir))#*pmt_distance + hit.dir*hit_distance*i))
     end
     pos
 end
@@ -193,7 +202,7 @@ function update!(rba::RBA, det::Detector)
         end
         delete!(rba._plots, "Basegrid")
     end
-    basegrid!(rba; center=Point3d(det_center[1], det_center[2], 0))
+    basegrid!(rba; center=Point3f(det_center[1], det_center[2], 0))
 
     if "Detector" in keys(rba._plots)
         for element in rba._plots["Detector"]
@@ -206,8 +215,21 @@ function update!(rba::RBA, det::Detector)
     push!(plots, meshscatter!(
         scene,
         [m.pos for m ∈ opticalmodules],
-        markersize=2.5,
+        markersize=1.0,
         color=RGBAf(0.3, 0.3, 0.3, 0.5)
+    ))
+    pmt_positions = Position{Float64}[]
+    for m in det
+        !isopticalmodule(m) && continue
+        for pmt in m
+            push!(pmt_positions, pmt.pos)
+        end
+    end
+    push!(plots, meshscatter!(
+        scene,
+        pmt_positions,
+        markersize=0.5,
+        color=RGBf(1.0, 0.0, 0.0)
     ))
     basemodules = [m for m ∈ det if isbasemodule(m)]
     push!(plots, meshscatter!(
@@ -222,10 +244,10 @@ function update!(rba::RBA, det::Detector)
         sort!(modules, by=m->m.location.floor)
         segments = [m.pos for m in modules]
         top_module = modules[end]
-        buoy_pos = top_module.pos + Point3d(0, 0, 100)
+        buoy_pos = top_module.pos + Point3f(0, 0, 100)
         push!(segments, buoy_pos)
         push!(plots, lines!(scene, segments; color=:grey, linewidth=1))
-        push!(plots, mesh!(scene, Sphere(Point3d(buoy_pos), 7), color=:yellow, alpha=0.3))
+        push!(plots, mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow, alpha=0.3))
     end
 
     center!(rba.scene)
@@ -244,11 +266,11 @@ styling options.
 function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewidth=1, color=(:grey, 0.3))
     scene = rba.scene
     min, max = span
-    center = Point3d(center)
+    center = Point3f(center)
     plots = rba._plots["Basegrid"] = []
     for q ∈ range(min, max; step=spacing)
-        push!(plots, lines!(scene, [Point3d(q, min, 0) + center, Point3d(q, max, 0) + center], color=color, linewidth=linewidth))
-        push!(plots, lines!(scene, [Point3d(min, q, 0) + center, Point3d(max, q, 0) + center], color=color, linewidth=linewidth))
+        push!(plots, lines!(scene, [Point3f(q, min, 0) + center, Point3f(q, max, 0) + center], color=color, linewidth=linewidth))
+        push!(plots, lines!(scene, [Point3f(min, q, 0) + center, Point3f(max, q, 0) + center], color=color, linewidth=linewidth))
     end
     scene
 end

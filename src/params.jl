@@ -29,13 +29,3 @@ Base.@kwdef mutable struct SimParams
     quit::Bool = false
 end
 
-"""
-
-Set the frames per second for the animation.
-
-"""
-function setfps!(rba::RBA, fps::Integer)
-    rba.simparams.fps = fps
-    rba
-end
-setfps!(fps::Integer) = setfps!(_rba, fps)

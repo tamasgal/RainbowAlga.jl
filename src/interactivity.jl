@@ -113,3 +113,14 @@ end
 @inline rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
 @inline next_hits_colouring(rba::RBA) = rba.simparams.hits_selector += 1
 @inline previous_hits_colouring(rba::RBA) = rba.simparams.hits_selector -= 1
+
+"""
+
+Set the frames per second for the animation.
+
+"""
+function setfps!(rba::RBA, fps::Integer)
+    rba.simparams.fps = fps
+    nothing
+end
+setfps!(fps::Integer) = setfps!(_rba, fps)

@@ -90,7 +90,7 @@ end
 Adds hits to the scene.
 
 """
-function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
 
     positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
 
@@ -116,8 +116,8 @@ function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
 end
-function update!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
-    update!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+    add!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
 function clearhits!(rba::RBA)
     for hitscloud in rba.hitsclouds
@@ -126,8 +126,21 @@ function clearhits!(rba::RBA)
     empty!(rba.hitsclouds)
 end
 clearhits!() = clearhits!(_rba)
+function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
+    if hitscloud_idx < 1 || hitscloud_idx > length(rba.hitsclouds)
+        error("No hits cloud with index $(hitscloud_idx) found. There is a total of $(length(rba.hitsclouds)) hits clouds to choose from.")
+    end
+    hitscloud = rba.hitsclouds[hitscloud_idx]
+    if length(colors) != length(hitscloud.hits)
+        error("$(length(colors)) colors were provided, however one color per hit is requred => a total of $(length(hitscloud.hits)) for this hits cloud.")
+    end
+    hitscloud.mesh.color = colors
+    nothing
+end
 
-function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, track_id::Int)
+recolor!(hitscloud_idx::Integer, colors) = recolor!(_rba, hitscloud_idx, colors)
+
+function update!(rba::RBA, track::T, hits, particle_name::AbstractString, track_id::Int) where T<:Union{Track, Trk}
     positions = Observable(generate_hit_positions(hits))
 
     cherenkov_photons = cherenkov(track, hits)
@@ -141,7 +154,7 @@ function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, tr
     )
 
     push!(rba.hitsclouds, HitsCloud([], positions, cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
-    rba
+    nothing
 end
 
 function Base.empty!(rba::RBA)
@@ -165,7 +178,8 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
-add!(track::Track) = add!(_rba, track)
+add!(track::T) where T<:Union{Track, Trk} = add!(_rba, track)
+add!(trk::Trk) = add!(_rba, Track(_rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t))
 
 """
 
@@ -253,7 +267,7 @@ function update!(rba::RBA, det::Detector)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
 
-    rba
+    nothing
 end
 update!(d::Detector) = update!(_rba, d)
 
@@ -365,7 +379,7 @@ function update_infotext!(rba)
     # we need to make sure it does not overflow, but we should make this better upstream
     if length(rba.hitsclouds) > 0
         idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
-        push!(lines, "Colour scheme: $(rba.hitsclouds[idx].description)")
+        push!(lines, "Hits cloud #$(idx): $(rba.hitsclouds[idx].description)")
     end
 
     rba.infobox.text = join(lines, "\n")

@@ -26,13 +26,28 @@ julia> import Pkg; Pkg.add("RainbowAlga")
     
 ## Quickstart
 
-The `RainbowAlga.run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
+RainbowAlga has a global scene object which can be manipulated using several
+functions. `RainbowAlga.run()` can be called to display the scene at any time,
+usually right after loading the package.
 
 ``` julia
-julia> using RainbowAlga
+julia> using RainbowAlga, KM3io, KM3NeTTestData
 
-julia> RainbowAlga.run("some_detector.detx", "some_online_file.root", 23)
+julia> RainbowAlga.run()  # opens the 3D display with the default KM3NeT detector
 ```
+
+The function to update (usually replace) objects like the detector, hits or
+tracks is called `update!` and can be called with the corresponding objects. It
+will modify the global scene immediately. Here is an example how to load or
+update the detector geometry:
+
+```julia
+julia> d = Detector(datapath("detx", "KM3NeT_00000133_20221025.detx"))
+
+julia> update!(d)
+```
+
+## Keybindings
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.
 
@@ -54,3 +69,12 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)
+
+## Performance
+
+In case your computer is too slow to run a smooth animation and the Julia REPL is not responding quickly enough (or at all), consider lowering the framees per second (FPS) of the animation. It is best to set the FPS before calling `RainbowAlga.run()`, e.g. to 10 FPS:
+
+``` julia
+julia> setfps!(10)
+```
+

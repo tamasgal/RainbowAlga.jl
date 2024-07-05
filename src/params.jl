@@ -29,21 +29,3 @@ Base.@kwdef mutable struct SimParams
     quit::Bool = false
 end
 
-# The global parameters for the 3D simulation
-const simparams = SimParams()
-
-# Control functions to steer the 3D simulation
-@inline isstopped() = simparams.stopped
-@inline stop() = simparams.stopped = true
-@inline start() = simparams.stopped = false
-@inline reset_time() = simparams.frame_idx = 0
-@inline faster(n::Int) = simparams.speed += n
-@inline slower(n::Int) = simparams.speed -= n
-@inline increasetot(t::Float64) = simparams.min_tot += t
-@inline decreasetot(t::Float64) = simparams.min_tot -= t
-@inline speed() = simparams.speed
-@inline toggle_rotation() = simparams.rotation_enabled = !simparams.rotation_enabled
-@inline toggle_loop() = simparams.loop_enabled = !simparams.loop_enabled
-@inline rotation_enabled() = simparams.rotation_enabled
-@inline next_hits_colouring() = simparams.hits_selector += 1
-@inline previous_hits_colouring() = simparams.hits_selector -= 1

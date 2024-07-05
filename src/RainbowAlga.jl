@@ -11,10 +11,11 @@ using GLFW
 using Corpuscles
 using ColorSchemes
 
-export display3d, RBA
+export update!, clearhits!, setfps!, add!, recolor!
 
 include("params.jl")
 include("core.jl")
 include("interactivity.jl")
+include("runtime.jl")
 
 end  # module

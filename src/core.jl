@@ -54,6 +54,7 @@ end
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
     center::Point3f = Point3f(0.0, 0.0, 0.0)
+    simparams::SimParams = SimParams()
    # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
    # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
    # hits_mesh_descriptions::Vector{String} = []
@@ -99,8 +100,8 @@ function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=
         t_min, t_max = extrema(h.t for h ∈ triggered(hits))
     end
     Δt = t_max - t_min
-    simparams.t_offset = t_min
-    simparams.loop_end_frame_idx = Int(ceil(Δt))
+    rba.simparams.t_offset = t_min
+    rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
     # rba.hits = hits
 
@@ -108,7 +109,7 @@ function update!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=
     hits_mesh = meshscatter!(
         rba.scene,
         positions,
-        color = [cmap[(h.t - simparams.t_offset) / Δt] for h ∈ hits],
+        color = [cmap[(h.t - rba.simparams.t_offset) / Δt] for h ∈ hits],
         markersize = [0 for _ ∈ hits],
         alpha = 0.8,
     )
@@ -130,7 +131,6 @@ function update!(rba::RBA, track::Track, hits, particle_name::AbstractString, tr
     positions = Observable(generate_hit_positions(hits))
 
     cherenkov_photons = cherenkov(track, hits)
-
 
     cherenkov_hits_mesh = meshscatter!(
         rba.scene,
@@ -292,7 +292,7 @@ run(;interactive=true) = run(_rba; interactive=interactive)
 Run the RainbowAlga GUI and display the specified event.
 """
 function display!(rba::RBA, event::Evt)
-    simparams.frame_idx = 0
+    rba.simparams.frame_idx = 0
 
     chits = event.hits
     update!(rba, chits)
@@ -357,14 +357,14 @@ Generates the text for the infobox on the lower left.
 """
 function update_infotext!(rba)
     lines = String[]
-    push!(lines, "t = $(simparams.frame_idx) ns (loop=$(simparams.loop_enabled))")
-    push!(lines, @sprintf "time offset = %.0f ns" simparams.t_offset)
-    push!(lines, @sprintf "ToT cut = %.1f ns" simparams.min_tot)
+    push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
+    push!(lines, @sprintf "time offset = %.0f ns" rba.simparams.t_offset)
+    push!(lines, @sprintf "ToT cut = %.1f ns" rba.simparams.min_tot)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream
     if length(rba.hitsclouds) > 0
-        idx = abs(simparams.hits_selector) % length(rba.hitsclouds) + 1
+        idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
         push!(lines, "Colour scheme: $(rba.hitsclouds[idx].description)")
     end
 
@@ -382,30 +382,30 @@ function start_eventloop(rba)
     while isopen(screen)
         frame_start = time()
 
-        if simparams.quit
-            simparams.quit = false
+        if rba.simparams.quit
+            rba.simparams.quit = false
             break
         end
 
-        if simparams.loop_enabled && simparams.frame_idx > simparams.loop_end_frame_idx
-            simparams.frame_idx = 0
+        if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
+            rba.simparams.frame_idx = 0
         end
 
 
-        rotation_enabled() && rotate_cam!(scene, Vec3f(0, 0.001, 0))
+        rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
-        t = simparams.t_offset + simparams.frame_idx
+        t = rba.simparams.t_offset + rba.simparams.frame_idx
 
         # for (idx, mesh) in enumerate(rba.hits_meshes)
-        #     isselected = idx == (abs(simparams.hits_selector) % length(rba.hits_meshes) + 1)
-        #     # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
-        #     hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
+        #     isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hits_meshes) + 1)
+        #     # hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? rba.simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
+        #     hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
         #     mesh.markersize = hit_sizes
         # end
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
-            isselected = idx == (abs(simparams.hits_selector) % length(rba.hitsclouds) + 1)
-            hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? (1+(simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
-            # hit_sizes = [isselected && h.tot >= simparams.min_tot && t >= h.t ? 10 : 0 for h in hitscloud.hits]
+            isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
+            hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
+            # hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? 10 : 0 for h in hitscloud.hits]
             hitscloud.mesh.markersize = hit_sizes
         end
 
@@ -420,14 +420,14 @@ function start_eventloop(rba)
 
         GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
 
-        if !isstopped()
-            simparams.frame_idx += simparams.speed
+        if !isstopped(rba)
+            rba.simparams.frame_idx += rba.simparams.speed
         end
 
         yield()
 
         Δt = time() - frame_start
-        sleep_time = 1.0/simparams.fps - Δt
+        sleep_time = 1.0/rba.simparams.fps - Δt
         if sleep_time > 0
             sleep(sleep_time)
         end

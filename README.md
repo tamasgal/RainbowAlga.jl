@@ -26,7 +26,9 @@ julia> import Pkg; Pkg.add("RainbowAlga")
     
 ## Quickstart
 
-The `RainbowAlga.run(detector_fname, event_fname, event_id)` can be used to invoke the 3D display.
+RainbowAlga has a global scene object which can be manipulated using several
+functions. `RainbowAlga.run()` can be called to display the scene at any time,
+usually right after loading the package.
 
 ``` julia
 julia> using RainbowAlga, KM3io, KM3NeTTestData
@@ -34,10 +36,15 @@ julia> using RainbowAlga, KM3io, KM3NeTTestData
 julia> RainbowAlga.run()  # opens the 3D display with the default KM3NeT detector
 ```
 
-You can replace the detector by calling `update!`
+The function to update (usually replace) objects like the detector, hits or
+tracks is called `update!` and can be called with the corresponding objects. It
+will modify the global scene immediately. Here is an example how to load or
+update the detector geometry:
 
 ```julia
-julia> update!(Detector(datapath("detx", "KM3NeT_00000133_20221025.detx")))
+julia> d = Detector(datapath("detx", "KM3NeT_00000133_20221025.detx"))
+
+julia> update!(d)
 ```
 
 ## Keybindings

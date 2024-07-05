@@ -69,3 +69,12 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)
+
+## Performance
+
+In case your computer is too slow to run a smooth animation and the Julia REPL is not responding quickly enough (or at all), consider lowering the framees per second (FPS) of the animation. It is best to set the FPS before calling `RainbowAlga.run()`, e.g. to 10 FPS:
+
+``` julia
+julia> setfps!(10)
+```
+

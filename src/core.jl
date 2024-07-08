@@ -90,7 +90,7 @@ end
 Adds hits to the scene.
 
 """
-function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
 
     positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
 
@@ -116,7 +116,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
 end
-function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}}
+function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
     add!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
 function clearhits!(rba::RBA)

@@ -8,8 +8,8 @@ struct Track
     t::Float64
     _lines::Lines{Tuple{Vector{Point{3, Float64}}}}
 
-    function Track(scene, pos, dir, v, t; color=RGBf(1, 0.2, 0))
-        _lines = lines!(scene, [pos, pos], color=color)
+    function Track(scene, pos, dir, v, t; color=RGBf(1, 0.1, 0.4))
+        _lines = lines!(scene, [pos, pos], color=color, linewidth=5)
         new(pos, dir, v, t, _lines)
     end
 end
@@ -36,7 +36,7 @@ end
 Container for hits including the mesh scatter and a description.
 
 """
-struct HitsCloud
+mutable struct HitsCloud
     hits::Vector{Hit}
     positions::Observable{Vector{GeometryBasics.Point{3, Float32}}}
     mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}
@@ -111,7 +111,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
         positions,
         color = [cmap[(h.t - rba.simparams.t_offset) / Δt] for h ∈ hits],
         markersize = [0 for _ ∈ hits],
-        alpha = 0.8,
+        alpha = 0.9,
     )
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
@@ -150,7 +150,7 @@ function update!(rba::RBA, track::T, hits, particle_name::AbstractString, track_
         positions,
         color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
         markersize = [0 for _ ∈ hits],
-        alpha = 0.5,
+        alpha = 0.9,
     )
 
     push!(rba.hitsclouds, HitsCloud([], positions, cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
@@ -205,7 +205,7 @@ function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
 end
 
 
-function update!(rba::RBA, det::Detector)
+function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5)
     scene = rba.scene
     det_center = center(det)
     rba.center = det_center
@@ -226,24 +226,24 @@ function update!(rba::RBA, det::Detector)
     plots = rba._plots["Detector"] = []
 
     opticalmodules = [m for m in det if isopticalmodule(m)]
-    push!(plots, meshscatter!(
-        scene,
-        [m.pos for m ∈ opticalmodules],
-        markersize=1.0,
-        color=RGBAf(0.3, 0.3, 0.3, 0.5)
-    ))
     pmt_positions = Position{Float64}[]
     for m in det
         !isopticalmodule(m) && continue
         for pmt in m
-            push!(pmt_positions, pmt.pos)
+          push!(pmt_positions, pmt.pos + pmt.dir*dom_diameter*dom_scaling - pmt.dir*pmt_diameter*dom_scaling)
         end
     end
     push!(plots, meshscatter!(
         scene,
         pmt_positions,
-        markersize=0.5,
-        color=RGBf(1.0, 0.0, 0.0)
+        markersize=pmt_diameter*dom_scaling,
+        color=RGBAf(1.0, 1.0, 1.0, 0.4)
+    ))
+    push!(plots, meshscatter!(
+        scene,
+        [m.pos for m ∈ opticalmodules],
+        markersize=dom_diameter*dom_scaling,
+        color=RGBAf(0.3, 0.3, 0.3, 0.8)
     ))
     basemodules = [m for m ∈ det if isbasemodule(m)]
     push!(plots, meshscatter!(
@@ -261,7 +261,7 @@ function update!(rba::RBA, det::Detector)
         buoy_pos = top_module.pos + Point3f(0, 0, 100)
         push!(segments, buoy_pos)
         push!(plots, lines!(scene, segments; color=:grey, linewidth=1))
-        push!(plots, mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow, alpha=0.3))
+        push!(plots, mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow, alpha=0.7))
     end
 
     center!(rba.scene)
@@ -269,7 +269,7 @@ function update!(rba::RBA, det::Detector)
 
     nothing
 end
-update!(d::Detector) = update!(_rba, d)
+update!(d::Detector; kwargs...) = update!(_rba, d; kwargs...)
 
 """
 
@@ -393,6 +393,10 @@ function start_eventloop(rba)
 
     scene = rba.scene
 
+    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
+    # subwindow.clear = true
+    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
+    # plot!(subwindow, [1, 2, 3], rand(3))
     while isopen(screen)
         frame_start = time()
 
@@ -418,7 +422,8 @@ function start_eventloop(rba)
         # end
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
-            hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
+            !isselected && continue
+            hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
             # hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? 10 : 0 for h in hitscloud.hits]
             hitscloud.mesh.markersize = hit_sizes
         end

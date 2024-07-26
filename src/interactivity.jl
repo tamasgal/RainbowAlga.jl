@@ -99,20 +99,32 @@ function register_events(rba::RBA)
 end
 
 # Control functions to steer the 3D simulation
-@inline isstopped(rba::RBA) = rba.simparams.stopped
-@inline stop(rba::RBA) = rba.simparams.stopped = true
-@inline start(rba::RBA) = rba.simparams.stopped = false
-@inline reset_time(rba::RBA) = rba.simparams.frame_idx = 0
-@inline faster(rba::RBA, n::Int) = rba.simparams.speed += n
-@inline slower(rba::RBA, n::Int) = rba.simparams.speed -= n
-@inline increasetot(rba::RBA, t::Float64) = rba.simparams.min_tot += t
-@inline decreasetot(rba::RBA, t::Float64) = rba.simparams.min_tot -= t
-@inline speed(rba::RBA) = rba.simparams.speed
-@inline toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !_rba.simparams.rotation_enabled
-@inline toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !_rba.simparams.loop_enabled
-@inline rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
-@inline next_hits_colouring(rba::RBA) = rba.simparams.hits_selector += 1
-@inline previous_hits_colouring(rba::RBA) = rba.simparams.hits_selector -= 1
+isstopped(rba::RBA) = rba.simparams.stopped
+stop(rba::RBA) = rba.simparams.stopped = true
+start(rba::RBA) = rba.simparams.stopped = false
+reset_time(rba::RBA) = rba.simparams.frame_idx = 0
+faster(rba::RBA, n::Int) = rba.simparams.speed += n
+slower(rba::RBA, n::Int) = rba.simparams.speed -= n
+increasetot(rba::RBA, t::Float64) = rba.simparams.min_tot += t
+decreasetot(rba::RBA, t::Float64) = rba.simparams.min_tot -= t
+speed(rba::RBA) = rba.simparams.speed
+toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !_rba.simparams.rotation_enabled
+toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !_rba.simparams.loop_enabled
+rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
+function next_hits_colouring(rba::RBA)
+    hidehits!(rba)
+    rba.simparams.hits_selector += 1
+end
+function previous_hits_colouring(rba::RBA)
+    hidehits!(rba)
+    rba.simparams.hits_selector -= 1
+end
+function hidehits!(rba::RBA)
+    for hitscloud in rba.hitsclouds
+        n_hits = length(hitscloud.hits)
+        hitscloud.mesh.markersize = zeros(n_hits)
+    end
+end
 
 """
 
@@ -124,3 +136,10 @@ function setfps!(rba::RBA, fps::Integer)
     nothing
 end
 setfps!(fps::Integer) = setfps!(_rba, fps)
+
+function describe!(rba::RBA, hitscloud_idx::Integer, description::AbstractString)
+    rba.hitsclouds[hitscloud_idx].description = description
+end
+function describe!(hitscloud_idx::Integer, description::AbstractString)
+    describe!(_rba, hitscloud_idx, description)
+end

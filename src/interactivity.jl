@@ -45,6 +45,10 @@ function register_events(rba::RBA)
             next_hits_colouring(rba)
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard.x)
+            rba.simparams.show_infobox = !rba.simparams.show_infobox
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.l)
             toggle_loop(rba)
             return Consume()

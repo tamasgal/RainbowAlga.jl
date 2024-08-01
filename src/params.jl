@@ -23,6 +23,7 @@ Base.@kwdef mutable struct SimParams
     rotation_enabled::Bool = true
     loop_enabled::Bool = true
     darkmode_enabled::Bool = false
+    show_infobox::Bool = true
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
     hit_scaling::Int = 1  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second

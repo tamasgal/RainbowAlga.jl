@@ -370,6 +370,10 @@ end
 Generates the text for the infobox on the lower left.
 """
 function update_infotext!(rba)
+    if !rba.simparams.show_infobox
+        rba.infobox.text = ""
+        return
+    end
     lines = String[]
     push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns" rba.simparams.t_offset)

@@ -261,7 +261,7 @@ function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, 
         buoy_pos = top_module.pos + Point3f(0, 0, 100)
         push!(segments, buoy_pos)
         push!(plots, lines!(scene, segments; color=:grey, linewidth=1))
-        push!(plots, mesh!(scene, Sphere(Point3f(buoy_pos), 7), color=:yellow, alpha=0.7))
+        push!(plots, mesh!(scene, Cylinder(Point3f(buoy_pos), Point3f(buoy_pos + Point3f(0.0, 0.0, 20.0)), 7.0f0), color=:yellow, alpha=0.1))
     end
 
     center!(rba.scene)

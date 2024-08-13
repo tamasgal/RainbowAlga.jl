@@ -12,7 +12,7 @@ struct Track
     cone_y::Matrix{Float64}
     cone_z::Matrix{Float64}
 
-    function Track(scene, pos, dir, v, t; color=RGBf(1, 0.1, 0.4))
+    function Track(scene, pos, dir, v, t; color=RGBf(1, 0.1, 0.4), with_cherenkov_cone=true)
         _lines = lines!(scene, [pos, pos], color=color, linewidth=5)
 
         # Cherenkov cone
@@ -48,6 +48,7 @@ struct Track
         z_new = z_rot .+ target_pos.z
 
         s = surface!(scene, x_new, y_new, z_new, color = z, colormap = [ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.7), ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.0)], backlight = 2.0f0, transparency = true)
+        s.visible[] = with_cherenkov_cone
 
         new(pos, dir, v, t, _lines, s, x_rot, y_rot, z_rot)
     end
@@ -60,9 +61,11 @@ function draw!(track::Track, t)
     end
     endpos =  track.pos + track.v * track.dir * (t - track.t) / 1e9
     track._lines[1] = [track.pos, endpos]
-    track.cone[1][] = track.cone_x .+ endpos.x
-    track.cone[2][] = track.cone_y .+ endpos.y
-    track.cone[3][] = track.cone_z .+ endpos.z
+    if track.cone.visible[]
+        track.cone[1][] = track.cone_x .+ endpos.x
+        track.cone[2][] = track.cone_y .+ endpos.y
+        track.cone[3][] = track.cone_z .+ endpos.z
+    end
     track
 end
 
@@ -220,8 +223,8 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
-add!(track::T) where T<:Union{Track, Trk} = add!(_rba, track)
-add!(trk::Trk) = add!(_rba, Track(_rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t))
+add!(track::T; kwargs...) where T<:Union{Track, Trk} = add!(_rba, track; kwargs...)
+add!(trk::Trk; kwargs...) = add!(_rba, Track(_rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
 
 """
 

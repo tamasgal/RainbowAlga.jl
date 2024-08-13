@@ -80,7 +80,7 @@ end
 Select the first `n` hits on each PMT.
 
 """
-function select_first_hits(hits::T; n=1; mintot=20, maxtot=255) where T
+function select_first_hits(hits::T; n=1, mintot=20, maxtot=255) where T
     hits = filter(h -> mintot < h.tot < maxtot, hits)
     out = T()
     sort!(hits; by=h->h.t)

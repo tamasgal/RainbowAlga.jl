@@ -24,7 +24,7 @@ function main()
 
     update!(detector)
     add!(hits)
-    add!(muon; with_cherenkov_cone=false)
+    add!(muon; with_cherenkov_cone=true)
 
     t₀ = muon.t + 500
     timespan = 1800

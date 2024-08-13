@@ -47,7 +47,7 @@ struct Track
         y_new = y_rot .+ target_pos.y
         z_new = z_rot .+ target_pos.z
 
-        s = surface!(scene, x_new, y_new, z_new, color = z, colormap = [ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.7), ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.0)], backlight = 2.0f0)
+        s = surface!(scene, x_new, y_new, z_new, color = z, colormap = [ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.7), ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.0)], backlight = 2.0f0, transparency = true)
 
         new(pos, dir, v, t, _lines, s, x_rot, y_rot, z_rot)
     end

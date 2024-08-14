@@ -24,15 +24,19 @@ function main()
 
     update!(detector)
     add!(hits)
+    add!(hits; hit_distance=3)
+    add!(hits)
     add!(muon; with_cherenkov_cone=true)
 
-    t₀ = muon.t + 500
+    t₀ = muon.t + 800
     timespan = 1800
 
-    cmap = ColorSchemes.thermal
+    #cmap = ColorSchemes.thermal
+    cmap = reverse(ColorSchemes.jet1)
 
-    #recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
-    recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=cmap))
+    recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
+    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
+    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=ColorSchemes.roma))
     RainbowAlga._rba.simparams.t_offset = t₀
 
     # manually adding secondary cascades
@@ -50,7 +54,7 @@ function main()
 
     fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
     Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap,
-             label="Time [μs]", labelsize=35, ticklabelsize=35, ticklabelspace=100, size=50); fig
+             label="Time [ns]", labelsize=35, ticklabelsize=35, ticklabelspace=100, size=50); fig
     save("colorbar.pdf", fig)
     save("colorbar.png", fig)
     println("Colorbar saved separately as: colorbar.pdf")

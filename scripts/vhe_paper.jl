@@ -1,11 +1,14 @@
 println("Loading libaries...")
 using RainbowAlga, KM3io, ColorSchemes; setfps!(20)
 using LinearAlgebra
+using GeometryBasics
 using CairoMakie
+using FileIO
 
 
 function main()
     println("Creating scene...")
+    RainbowAlga.displayparams.size = (1100, 1300)
     RainbowAlga._rba.simparams.hit_scaling = 10
     RainbowAlga._rba.simparams.speed = 6
     RainbowAlga._rba.simparams.min_tot = 0
@@ -13,7 +16,7 @@ function main()
     RainbowAlga._rba.simparams.rotation_enabled = false
     RainbowAlga._rba.simparams.stopped = true
     RainbowAlga._rba.simparams.loop_enabled = false
-    RainbowAlga._rba.simparams.frame_idx = 2000
+    RainbowAlga._rba.simparams.frame_idx = 1950
 
     detector = Detector("/Users/tamasgal/Dev/vhe-event-and-calibration-data/detector.dynamical.datx")
     f = ROOTFile("/Users/tamasgal/Dev/vhe-event-and-calibration-data/KM3NeT_00000133_00014728.data.jppmuon_aashower_dynamic.offline.v9.0.vhe.root")
@@ -21,7 +24,8 @@ function main()
     event = first(f.offline)
     muon = bestjppmuon(event)
     #hits = select_hits(event.hits, muon)
-    hits = select_first_hits(event.hits; n=5, maxtot=256)
+    hits = filter(h->h.dom_id != 808950076 && h.channel_id != 3, event.hits)
+    hits = select_first_hits(hits; n=5, maxtot=256)
 
     update!(detector; with_basegrid=false)
     add!(hits; hit_distance=3)
@@ -50,6 +54,30 @@ function main()
         marker = :Sphere,
         alpha = 0.9
     )
+
+    # compass pointing towards (0, 1, 0) which is north
+    compass_pos = Point3f(150, 500, 0)
+    compass_size = 40
+    text!(RainbowAlga._rba.scene, compass_pos + Point3f(0.0, -compass_size/2, 0.0); text = "N", markerspace=:data, font=:bold, fontsize=compass_size*0.8, color=:black, align=(:center, :bottom))
+    xyz = [
+        Point3f(-1, 0, 0),
+        Point3f(0, 2.5, 0),
+        Point3f(1, 0, 0),
+        Point3f(0, 0.6, 0),
+    ] * compass_size
+    xyz .+= compass_pos
+    xy = Point2f0.(xyz)
+    f =  faces(Polygon(xy))
+    m = GeometryBasics.Mesh(Point3f0.(xyz), f)
+    mesh!(RainbowAlga._rba.scene, m; color = :red)
+
+
+    # Eiffel Tower
+    eiffel = load("assets/eiffel.stl")
+    scale_factor = 330 / maximum([p[3] for p in eiffel.position])  # height of the Eiffel Tower with tip: 330m
+    eiffel.position .*= scale_factor
+    eiffel.position .+= Point3f(-150, 630, 0)
+    mesh!(RainbowAlga._rba.scene, eiffel; color = RGBf(0.6039, 0.5569, 0.5137))  # Eiffel Tower Colour from https://encycolorpedia.com/9a8e83
 
     RainbowAlga.run(;interactive=false)
     update_cam!(RainbowAlga._rba.scene, RainbowAlga._rba.cam, Vec3f(394.19, 1527.77, 1032.48), Vec3f(94.60, 312.71, 393.42), Vec3f(0,0,1))

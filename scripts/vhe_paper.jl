@@ -51,6 +51,7 @@ function main()
     )
 
     RainbowAlga.run(;interactive=false)
+    update_cam!(RainbowAlga._rba.scene, RainbowAlga._rba.cam, Vec3f(394.19, 1527.77, 1032.48), Vec3f(94.60, 312.71, 393.42), Vec3f(0,0,1))
 
     fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
     Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap,

@@ -450,6 +450,8 @@ function start_eventloop(rba)
     # subwindow.clear = true
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
+
+    # on(screen.render_tick) do tick
     while isopen(screen)
         frame_start = time()
 
@@ -505,6 +507,7 @@ function start_eventloop(rba)
             sleep(sleep_time)
         end
     end
+    #wait(screen)
 
     GLMakie.destroy!(screen)
 end

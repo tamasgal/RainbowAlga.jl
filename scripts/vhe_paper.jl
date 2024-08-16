@@ -8,6 +8,7 @@ function main()
     println("Creating scene...")
     RainbowAlga._rba.simparams.hit_scaling = 10
     RainbowAlga._rba.simparams.speed = 6
+    RainbowAlga._rba.simparams.min_tot = 0
     RainbowAlga._rba.simparams.show_infobox = false
     RainbowAlga._rba.simparams.rotation_enabled = false
     RainbowAlga._rba.simparams.stopped = true

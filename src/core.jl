@@ -489,6 +489,14 @@ function start_eventloop(rba)
             rba.simparams.frame_idx += rba.simparams.speed
         end
 
+        # if rba.simparams.save_next_frame
+        #     println("Saving frame")
+        #     rba.simparams.save_next_frame = false
+        #     @show frame
+        #     #save("rba.png", colorbuffer(rba.scene))
+        #     #println("Frame saved as rba.png")
+        # end
+
         yield()
 
         Δt = time() - frame_start

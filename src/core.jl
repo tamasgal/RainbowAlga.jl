@@ -292,14 +292,14 @@ function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, 
         markersize=dom_diameter*dom_scaling,
         color=RGBAf(0.3, 0.3, 0.3, 0.8)
     ))
-    basemodules = [m for m ∈ det if isbasemodule(m)]
-    push!(plots, meshscatter!(
-        scene,
-        [m.pos for m ∈ basemodules],
-        marker=Rect3f(Vec3f(-0.5), Vec3f(0.5)),
-        markersize=5,
-        color=:black
-    ))
+    # basemodules = [m for m ∈ det if isbasemodule(m)]
+    # push!(plots, meshscatter!(
+    #     scene,
+    #     [m.pos for m ∈ basemodules],
+    #     marker=Rect3f(Vec3f(-0.5), Vec3f(0.5)),
+    #     markersize=5,
+    #     color=:black
+    # ))
     for string ∈ det.strings
         modules = filter(m->m.location.string == string, collect(values(det.modules)))
         sort!(modules, by=m->m.location.floor)

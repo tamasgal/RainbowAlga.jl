@@ -462,17 +462,10 @@ function start_eventloop(rba)
             rba.simparams.frame_idx = 0
         end
 
-
         rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
         t = rba.simparams.t_offset + rba.simparams.frame_idx
 
-        # for (idx, mesh) in enumerate(rba.hits_meshes)
-        #     isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hits_meshes) + 1)
-        #     # hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? rba.simparams.hit_scaling / 5 * √h.tot/4 : 0 for h ∈ rba.hits]
-        #     hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ rba.hits]
-        #     mesh.markersize = hit_sizes
-        # end
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
             !isselected && continue

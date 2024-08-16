@@ -93,7 +93,7 @@ end
 
 
 @kwdef mutable struct RBA
-    scene::Scene = Scene(backgroundcolor=RGBf(0.9))
+    scene::Scene = Scene(backgroundcolor=RGBf(1.0))
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
@@ -250,7 +250,7 @@ function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
 end
 
 
-function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5)
+function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
     scene = rba.scene
     det_center = center(det)
     rba.center = det_center
@@ -261,7 +261,9 @@ function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, 
         end
         delete!(rba._plots, "Basegrid")
     end
-    basegrid!(rba; center=Point3f(det_center[1], det_center[2], 0))
+    if with_basegrid
+        basegrid!(rba; center=Point3f(det_center[1], det_center[2], 0))
+    end
 
     if "Detector" in keys(rba._plots)
         for element in rba._plots["Detector"]

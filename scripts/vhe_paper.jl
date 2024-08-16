@@ -20,23 +20,23 @@ function main()
     event = first(f.offline)
     muon = bestjppmuon(event)
     #hits = select_hits(event.hits, muon)
-    hits = select_first_hits(event.hits; n=5)
+    hits = select_first_hits(event.hits; n=5, maxtot=256)
 
-    update!(detector)
-    add!(hits)
+    update!(detector; with_basegrid=false)
     add!(hits; hit_distance=3)
-    add!(hits)
+    add!(hits; hit_distance=3)
+    add!(hits; hit_distance=3)
     add!(muon; with_cherenkov_cone=true)
 
     t₀ = muon.t + 800
     timespan = 1800
 
-    #cmap = ColorSchemes.thermal
     cmap = reverse(ColorSchemes.jet1)
 
     recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
-    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
-    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=ColorSchemes.roma))
+    # Alternative colourings, use the "C" key to cycle through them
+    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=ColorSchemes.thermal))
+    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=ColorSchemes.thermal))
     RainbowAlga._rba.simparams.t_offset = t₀
 
     # manually adding secondary cascades

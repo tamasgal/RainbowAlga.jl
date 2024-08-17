@@ -472,7 +472,6 @@ function start_eventloop(rba)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
             !isselected && continue
             hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
-            # hit_sizes = [isselected && h.tot >= rba.simparams.min_tot && t >= h.t ? 10 : 0 for h in hitscloud.hits]
             hitscloud.mesh.markersize = hit_sizes
         end
 

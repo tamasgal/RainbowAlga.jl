@@ -37,11 +37,12 @@ function main()
     timespan = 1800
 
     cmap = reverse(ColorSchemes.jet1)
+    cmap_alternative = ColorSchemes.thermal
 
     recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
     # Alternative colourings, use the "C" key to cycle through them
-    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=ColorSchemes.thermal))
-    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=ColorSchemes.thermal))
+    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
+    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
     RainbowAlga._rba.simparams.t_offset = t₀
 
     # manually adding secondary cascades
@@ -79,15 +80,21 @@ function main()
     eiffel.position .+= Point3f(-150, 630, 0)
     mesh!(RainbowAlga._rba.scene, eiffel; color = RGBf(0.6039, 0.5569, 0.5137))  # Eiffel Tower Colour from https://encycolorpedia.com/9a8e83
 
-    RainbowAlga.run(;interactive=false)
     update_cam!(RainbowAlga._rba.scene, RainbowAlga._rba.cam, Vec3f(394.19, 1527.77, 1032.48), Vec3f(94.60, 312.71, 393.42), Vec3f(0,0,1))
+
+    RainbowAlga.run(;interactive=false)
 
     fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
     Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap,
              label="Time [ns]", labelsize=35, ticklabelsize=35, ticklabelspace=100, size=50); fig
     save("colorbar.pdf", fig)
     save("colorbar.png", fig)
-    println("Colorbar saved separately as: colorbar.pdf")
+    fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
+    Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap_alternative,
+             label="Time [ns]", labelsize=35, ticklabelsize=35, ticklabelspace=100, size=50); fig
+    save("colorbar_alt.pdf", fig)
+    save("colorbar_alt.png", fig)
+    println("Colorbar saved separately as: colorbar.pdf and colorbar_alt.pdf (and .png)")
 end
 
 

@@ -78,7 +78,7 @@ function main()
     scale_factor = 330 / maximum([p[3] for p in eiffel.position])  # height of the Eiffel Tower with tip: 330m
     eiffel.position .*= scale_factor
     eiffel.position .+= Point3f(-150, 630, 0)
-    mesh!(RainbowAlga._rba.scene, eiffel; color = RGBf(0.6039, 0.5569, 0.5137))  # Eiffel Tower Colour from https://encycolorpedia.com/9a8e83
+    mesh!(RainbowAlga._rba.scene, eiffel; color = RGBAf(0.6039, 0.5569, 0.5137, 0.3))  # Eiffel Tower Colour from https://encycolorpedia.com/9a8e83
 
     update_cam!(RainbowAlga._rba.scene, RainbowAlga._rba.cam, Vec3f(394.19, 1527.77, 1032.48), Vec3f(94.60, 312.71, 393.42), Vec3f(0,0,1))
 

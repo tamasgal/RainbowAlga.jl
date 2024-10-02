@@ -37,6 +37,78 @@ function register_events(rba::RBA)
             toggle_rotation(rba)
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard._1 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 1)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._2 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 2)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._3 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 3)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._4 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 4)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._5 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 5)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._6 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 6)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._7 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 7)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._8 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 8)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._9 & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            save_perspective(rba, 9)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._1)
+            load_perspective(rba, 1)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._2)
+            load_perspective(rba, 2)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._3)
+            load_perspective(rba, 3)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._4)
+            load_perspective(rba, 4)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._5)
+            load_perspective(rba, 5)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._6)
+            load_perspective(rba, 6)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._7)
+            load_perspective(rba, 7)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._8)
+            load_perspective(rba, 8)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard._9)
+            load_perspective(rba, 9)
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.c & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
             previous_hits_colouring(rba)
             return Consume()

@@ -100,6 +100,7 @@ end
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
+    perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
    # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
    # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
    # hits_mesh_descriptions::Vector{String} = []
@@ -126,6 +127,19 @@ end
 function display3d(rba::RBA)
     Threads.@spawn start_eventloop(rba)
 end
+
+function save_perspective(rba::RBA, idx::Int)
+    rba.perspectives[idx] = (rba.cam.eyeposition.val, rba.cam.lookat.val)
+end
+save_perspective(idx::Int) = save_perspective(_rba, idx::Int)
+function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
+    rba.perspectives[idx] = (eyeposition, lookat)
+end
+save_perspective(idx::Int, eyeposition, lookat) = save_perspective(_rba, idx::Int, eyeposition, lookat)
+function load_perspective(rba::RBA, idx::Int)
+    update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
+end
+load_perspective(idx::Int) = save_perspective(_rba, idx::Int)
 
 # const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
 

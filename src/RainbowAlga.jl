@@ -13,7 +13,7 @@ using Corpuscles
 using ColorSchemes
 
 export update!, clearhits!, setfps!, add!, recolor!, describe!
-export generate_colors
+export generate_colors, save_perspective, load_perspective
 
 include("params.jl")
 include("core.jl")

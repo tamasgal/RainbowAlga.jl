@@ -80,9 +80,12 @@ function main()
     eiffel.position .+= Point3f(-150, 630, 0)
     mesh!(RainbowAlga._rba.scene, eiffel; color = RGBAf(0.6039, 0.5569, 0.5137, 0.3))  # Eiffel Tower Colour from https://encycolorpedia.com/9a8e83
 
-    update_cam!(RainbowAlga._rba.scene, RainbowAlga._rba.cam, Vec3f(394.19, 1527.77, 1032.48), Vec3f(94.60, 312.71, 393.42), Vec3f(0,0,1))
-
-    RainbowAlga.run(;interactive=false)
+    # front view
+    save_perspective(1, Vec3f(391.5, 1411.7, 1127.7), Vec3f(73.0, 323.8, 380.1))
+    # top view
+    save_perspective(2, Vec3f(76.3, 640.4, 1631.5), Vec3f(75.8, 324.6, 379.8))
+    # zoom
+    save_perspective(3, Vec3f(424.1, 585.1, 450.1), Vec3f(70.4, 392.8, 284.1))
 
     fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
     Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap,

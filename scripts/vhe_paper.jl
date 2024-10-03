@@ -31,6 +31,8 @@ function main()
     add!(hits; hit_distance=3)
     add!(hits; hit_distance=3)
     add!(hits; hit_distance=3)
+    first_hits = select_first_hits(hits; n=1, maxtot=256)
+    add!(first_hits)
     add!(muon; with_cherenkov_cone=true)
 
     t₀ = muon.t + 800
@@ -43,6 +45,7 @@ function main()
     # Alternative colourings, use the "C" key to cycle through them
     recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
     recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
+    recolor!(4,  generate_colors(muon, first_hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
     RainbowAlga._rba.simparams.t_offset = t₀
 
     # manually adding secondary cascades
@@ -71,6 +74,16 @@ function main()
     f =  faces(Polygon(xy))
     m = GeometryBasics.Mesh(Point3f0.(xyz), f)
     mesh!(RainbowAlga._rba.scene, m; color = :red)
+
+
+    # Scale
+    scale_opts = Dict(:color => :black, :linewidth => 2)
+    scale_pos = Point3d(50, 600, 0)
+    scale_length = 100
+    lines!(RainbowAlga._rba.scene, [scale_pos + Point3d(scale_length/2, 10, 0), scale_pos + Point3d(scale_length/2, -10, 0)]; scale_opts...)
+    lines!(RainbowAlga._rba.scene, [scale_pos - Point3d(scale_length/2, -10, 0), scale_pos - Point3d(scale_length/2, 10, 0)]; scale_opts...)
+    lines!(RainbowAlga._rba.scene, [scale_pos - Point3d(scale_length/2, 0, 0), scale_pos + Point3d(scale_length/2, 0, 0)]; scale_opts...)
+    text!(RainbowAlga._rba.scene, scale_pos + Point3d(0.0, -10, 0.0); text = "$(scale_length) m", markerspace=:data, font=:bold, fontsize=23, color=:black, align=(:center, :bottom), rotation=deg2rad(180))
 
 
     # Eiffel Tower

@@ -38,14 +38,14 @@ function main()
     t₀ = muon.t + 800
     timespan = 1800
 
-    cmap = reverse(ColorSchemes.jet1)
-    cmap_alternative = ColorSchemes.thermal
+    cmap = ColorSchemes.thermal
+    cmap_alternative = reverse(ColorSchemes.jet1)
 
-    recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
     # Alternative colourings, use the "C" key to cycle through them
-    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
-    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
-    recolor!(4,  generate_colors(muon, first_hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
+    recolor!(1,  generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=t₀, timespan=timespan, cmap=cmap))
+    recolor!(2,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
+    recolor!(3,  generate_colors(muon, hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap_alternative))
+    recolor!(4,  generate_colors(muon, first_hits; cherenkov_thresholds=(NaN, NaN), t₀=t₀, timespan=timespan, cmap=cmap))
     RainbowAlga._rba.simparams.t_offset = t₀
 
     # manually adding secondary cascades
@@ -98,7 +98,9 @@ function main()
     # top view
     save_perspective(2, Vec3f(76.3, 640.4, 1631.5), Vec3f(75.8, 324.6, 379.8))
     # zoom
-    save_perspective(3, Vec3f(424.1, 585.1, 450.1), Vec3f(70.4, 392.8, 284.1))
+    save_perspective(3, Vec3f(392.9, 634.0, 449.7), Vec3f(70.4, 392.8, 284.1))
+
+    RainbowAlga.run(;interactive=false)
 
     fig = Figure(size = (300, 1400), backgroundcolor=:transparent)
     Colorbar(fig[1,1]; limits=(0, timespan), ticks=0:200:timespan, colormap=cmap,

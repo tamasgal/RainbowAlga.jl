@@ -33,19 +33,18 @@ usually right after loading the package.
 ``` julia
 julia> using RainbowAlga, KM3io, KM3NeTTestData
 
-julia> RainbowAlga.run()  # opens the 3D display with the default KM3NeT detector
-```
-
-The function to update (usually replace) objects like the detector, hits or
-tracks is called `update!` and can be called with the corresponding objects. It
-will modify the global scene immediately. Here is an example how to load or
-update the detector geometry:
-
-```julia
 julia> d = Detector(datapath("detx", "KM3NeT_00000133_20221025.detx"))
 
 julia> update!(d)
+
+julia> RainbowAlga.run()
 ```
+
+To manipulate the scene, the `update!()` and `add!()` functions can be used
+which act on the global RainbowAlga instance.
+As seen in the example above, the detector geometry is "updated" using `update!(d)`.
+Tracks and hits can be added in a similar way, but using `add!(hits)`.
+Check out the `scripts/vhe_paper.jl` script for more inspiration.
 
 ## Keybindings
 

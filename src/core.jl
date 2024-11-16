@@ -324,7 +324,7 @@ function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, 
         push!(segments, buoy_pos)
         push!(plots, lines!(scene, segments; color=:grey, linewidth=1))
         push!(plots, mesh!(scene, Cylinder(Point3f(buoy_pos), Point3f(buoy_pos + Point3f(0.0, 0.0, buoy_height)), 7.0f0), color=:yellow, alpha=0.1))
-        push!(plots, text!(scene, buoy_pos + Point3f(0.0, 0.0, 1.5buoy_height); fontsize=12, font=:bold, text = "$string", color=RGBf(120/255, 105/255, 11/255), markerspace=:pixel, align = (:center, :center)))
+        push!(plots, text!(scene, buoy_pos + Point3f(0.0, 0.0, 1.5buoy_height); fontsize=24, font=:bold, text = "$string", color=RGBf(120/255, 105/255, 11/255), markerspace=:pixel, align = (:center, :center)))
     end
 
     center!(rba.scene)

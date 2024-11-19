@@ -264,7 +264,7 @@ function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
 end
 
 
-function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
+function update!(rba::RBA, det::Detector; simplified_doms=false, dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
     scene = rba.scene
     det_center = center(det)
     rba.center = det_center
@@ -287,25 +287,28 @@ function update!(rba::RBA, det::Detector; dom_diameter=0.4, pmt_diameter=0.076, 
     plots = rba._plots["Detector"] = []
 
     opticalmodules = [m for m in det if isopticalmodule(m)]
-    pmt_positions = Position{Float64}[]
-    for m in det
-        !isopticalmodule(m) && continue
-        for pmt in m
-          push!(pmt_positions, pmt.pos + pmt.dir*dom_diameter*dom_scaling - pmt.dir*pmt_diameter*dom_scaling)
-        end
-    end
-    push!(plots, meshscatter!(
-        scene,
-        pmt_positions,
-        markersize=pmt_diameter*dom_scaling,
-        color=RGBAf(1.0, 1.0, 1.0, 0.4)
-    ))
     push!(plots, meshscatter!(
         scene,
         [m.pos for m ∈ opticalmodules],
         markersize=dom_diameter*dom_scaling,
         color=RGBAf(0.3, 0.3, 0.3, 0.8)
     ))
+
+    if !simplified_doms
+      pmt_positions = Position{Float64}[]
+      for m in det
+          !isopticalmodule(m) && continue
+          for pmt in m
+            push!(pmt_positions, pmt.pos + pmt.dir*dom_diameter*dom_scaling - pmt.dir*pmt_diameter*dom_scaling)
+          end
+      end
+      push!(plots, meshscatter!(
+          scene,
+          pmt_positions,
+          markersize=pmt_diameter*dom_scaling,
+          color=RGBAf(1.0, 1.0, 1.0, 0.4)
+      ))
+    end
     # basemodules = [m for m ∈ det if isbasemodule(m)]
     # push!(plots, meshscatter!(
     #     scene,

@@ -46,6 +46,18 @@ As seen in the example above, the detector geometry is "updated" using `update!(
 Tracks and hits can be added in a similar way, but using `add!(hits)`.
 Check out the `scripts/vhe_paper.jl` script for more inspiration.
 
+## Performance Issues
+
+If you encounter any performance issues, you can remove e.g. the detailed DOM rendering
+by passing `simplified_doms=true` to `update!(detector; ...)`, like
+
+```julia
+julia> update!(d; simplified_doms=true)
+```
+
+Make sure not to overuse `add!(hits)`, since each hit cloud adds some overhead to the
+animation loop, even if not fully displayed.
+
 ## Keybindings
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.

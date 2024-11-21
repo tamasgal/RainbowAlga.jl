@@ -498,7 +498,7 @@ function start_eventloop(rba)
 
         update_infotext!(rba)
 
-        GLMakie.pollevents(screen)
+        GLMakie.pollevents(screen, Makie.RegularRenderTick)
         GLMakie.render_frame(screen)
 
         GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))

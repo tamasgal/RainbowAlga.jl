@@ -74,7 +74,9 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>A</kbd>      | Toggle auto-rotation      |
 | <kbd>L</kbd>      | Toggle loop               |
 | <kbd>D</kbd>      | Toggle dark mode          |
-| <kbd>C</kbd>      | Toggle hit colouring mode |
+| <kbd>C</kbd>      | Cycle between hit clouds  |
+| <kbd>1</kbd> - <kbd>9</kbd>      | Load perspective |
+| <kbd>Shift</kbd><kbd>1</kbd> - <kbd>9</kbd>      | Save perspective |
 | <kbd>Space</kbd>  | Play/Pause                |
 | <kbd>Q</kbd>      | Quit                      |
 

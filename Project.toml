@@ -19,7 +19,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 Corpuscles = "2"
-GLMakie = "^0.10.16"
+GLMakie = "^0.10.16, ^0.11"
 KM3io = "^0.16, ^0.17"
 julia = "^1.8"
 

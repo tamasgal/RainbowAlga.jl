@@ -84,12 +84,11 @@ end
 Adds hits to the scene.
 
 """
-function add_hits!(scene, hits::T, colors; t_offset=0, hit_scaling=1, min_tot=0, frame_idx=0.0, timespan=1800, pmt_distance=5, hit_distance=2, colorscheme=:matter) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
+function add_hits!(scene, hits::T, colors; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
 
     positions = generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
     hit_sizes = [0.0 for h in hits]
 
-    cmap = getproperty(ColorSchemes, colorscheme)
     hits_mesh = meshscatter!(
         scene,
         positions,
@@ -172,9 +171,9 @@ function main()
     hit_scaling = 9
     min_tot = 0
     #frame_idx = 1950  # Nature paper
-    frame_idx = 8350
 
-    t_offset = muon.t + 800  # where the hit colouring starts
+    hit_t_offset = 800
+    t_offset = muon.t + hit_t_offset  # where the hit colouring starts
     timespan = 1800  # total time span for hit colouring
 
     cmap = ColorSchemes.matter
@@ -187,7 +186,9 @@ function main()
     colors = generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t_offset=t_offset, timespan=timespan, cmap=cmap)
 
     println("Creating scene...")
-    fig = Figure(size=(3840, 2160), figure_padding = 0, backgroundcolor=:gray80)
+    # bgcolor = :gray80
+   bgcolor = RGBf(0.0, 0.0, 0.1)
+    fig = Figure(size=(3840, 2160), figure_padding = 0, backgroundcolor=bgcolor)
     lscene = LScene(fig[1, 1]; show_axis=false, scenekw = (;size=(3840, 2160)))
 
     scene = lscene.scene
@@ -198,12 +199,6 @@ function main()
     hits_mesh = add_hits!(scene, hits, colors;
             pmt_distance=3.5,
             hit_distance=3,
-            min_tot=min_tot,
-            frame_idx=frame_idx,
-            t_offset=t_offset,
-            timespan=timespan,
-            hit_scaling=hit_scaling,
-            colorscheme=:matter
     )
 
    track_linewidth = 4
@@ -219,14 +214,33 @@ function main()
    # save(fname, fig; px_per_unit=300/inch, update=false)
    
 
-   nframes = 600
+   framerate = 60
+    duration = 30  # [s]
+   nframes = framerate * duration
    time_iterator = range(muon.t, muon.t+3500, length=nframes)
    p = Progress(nframes)
    frame_idx = 0
-   record(fig, "uhe_animation.mp4", time_iterator; framerate = 60) do t
-     track_pos = positionof(track, t)
-     cam_lookat = (center(detector) + track_pos) / 2
-     cam_pos = Vec3f(391.5, 911.7, 727.7)
+   # cam_lookat_start = positionof(track, time_iterator[1])
+   # cam_lookat_end = center(detector)
+   #
+   # cam_pos_start, cam_lookat_start = ([-0.9523286435178022, 812.5768866715557, 214.2786332039779], [-94.40157010128716, 473.06610115312986, 261.717431763082])
+   # cam_pos_end, cam_lookat_end = ([446.1705158931006, 957.7570233855922, 477.07876179708234], [29.27006668403001, 387.0723575623845, 233.11875207979952])
+
+   # cam_pos_start, cam_lookat_start = ([-672.8690962109935, 623.2107094382475, 342.42235846645616], [-63.53399247358708, 393.6253697734687, 307.5961805275387])
+   # cam_pos_end, cam_lookat_end = ([501.96099394649707, 1129.1310276904364, 452.8152663613697], [14.813800501998088, 337.4907547855251, 342.63404890438886])
+
+   cam_pos_start, cam_lookat_start =    ([-687.3087460770153, -9.998398607057652, 155.91527178915078], [21.560567129273526, 351.1037109219317, 332.11418080267384])
+   cam_pos_end, cam_lookat_end =   ([223.18353822411638, 933.3578551733629, 1274.053832804231], [2.272564231790892, 331.64555221929885, 382.2112308410932])
+
+   cam_pos_start = Vec3f(cam_pos_start)
+   cam_pos_end = Vec3f(cam_pos_end)
+   cam_lookat_start = Vec3f(cam_lookat_start)
+   cam_lookat_end = Vec3f(cam_lookat_end)
+   record(fig, "uhe_animation.mp4", time_iterator; framerate = framerate) do t
+     # track_pos = positionof(track, t)
+     cam_lookat = cam_lookat_start + frame_idx/nframes * (cam_lookat_end - cam_lookat_start)
+     # cam_pos = Vec3f(591.5, 811.7, 427.7)
+     cam_pos = cam_pos_start + frame_idx/nframes * (cam_pos_end - cam_pos_start)
      update_cam!(scene, cam, cam_pos, cam_lookat, Vec3f(0,0,1))
      RainbowAlga.draw!(track, t; trail_length=10000)
      hit_sizes = [t >= h.t ? (1+(hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hits]

@@ -1,7 +1,7 @@
 name = "RainbowAlga"
 uuid = "63f1f1a9-5054-400b-8c42-42c880e99857"
 authors = ["Tamas Gal <tamas.gal@fau.de>"]
-version = "0.3.9"
+version = "0.3.10"
 
 [deps]
 ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"

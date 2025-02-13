@@ -16,6 +16,7 @@ export update!, clearhits!, setfps!, add!, recolor!, describe!
 export generate_colors, save_perspective, load_perspective
 export global_scene
 export select_first_hits, select_cherenkov_hits
+export positionof
 
 include("params.jl")
 include("core.jl")

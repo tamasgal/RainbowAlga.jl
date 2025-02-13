@@ -54,13 +54,21 @@ struct Track
     end
 end
 
-function draw!(track::Track, t)
+"""
+Return the position of the track at a given time.
+"""
+function positionof(track::Track, t)
+    track.pos + track.v * track.dir * (t - track.t) / 1e9
+end
+
+function draw!(track::Track, t; trail_length=0)
+    startpos = track.pos - track.dir * trail_length
     if t < track.t
-        track._lines[1] = [track.pos, track.pos]
+        track._lines[1] = [startpos, track.pos]
         return track
     end
     endpos =  track.pos + track.v * track.dir * (t - track.t) / 1e9
-    track._lines[1] = [track.pos, endpos]
+    track._lines[1] = [startpos, endpos]
     if track.cone.visible[]
         track.cone[1][] = track.cone_x .+ endpos.x
         track.cone[2][] = track.cone_y .+ endpos.y

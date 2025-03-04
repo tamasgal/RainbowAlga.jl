@@ -213,7 +213,7 @@ function main()
     ]
 
     println("Loading event data...")
-    f = ROOTFile("/Users/tamasgal/Dev/vhe-event-and-calibration-data/KM3NeT_00000133_00014728.data.jppmuon_aashower_dynamic.offline.v9.0.vhe.root")
+    f = ROOTFile("vhe-event-and-calibration-data/KM3NeT_00000133_00014728.data.jppmuon_aashower_dynamic.offline.v9.0.vhe.root")
     event = first(f.offline)
     muon = bestjppmuon(event)
 
@@ -226,7 +226,7 @@ function main()
 
     cmap = ColorSchemes.matter
 
-    detector = Detector("/Users/tamasgal/Dev/vhe-event-and-calibration-data/detector.dynamical.datx")
+    detector = Detector("vhe-event-and-calibration-data/detector.dynamical.datx")
 
     hits = filter(h->h.dom_id != 808950076 && h.channel_id != 3, event.hits)
     hits = select_first_hits(hits; n=1000, maxtot=256)

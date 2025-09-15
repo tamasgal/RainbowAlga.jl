@@ -6,7 +6,6 @@ on:
 jobs:
   run-resqui:
     runs-on: ubuntu-latest
-    # make sure to match the environment's name
     environment: resqui
 
     steps:

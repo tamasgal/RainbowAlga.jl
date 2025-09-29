@@ -46,6 +46,43 @@ To manipulate the scene, the `update!()` and `add!()` functions can be used
 which act on the global RainbowAlga instance.
 As seen in the example above, the detector geometry is "updated" using `update!(d)`.
 Tracks and hits can be added in a similar way, but using `add!(hits)`.
+
+Here is an example of displaying some hit data from an offline file which already
+contains calibrated hits. The detector is still needed to be able to display the
+base geometry. It is obtained from the database by loading `KM3DB.jl` which allows
+the automatic retrieval using an extension in `KM3io.jl` via `Detector(det_id::Int)`:
+
+```julia
+julia> using RainbowAlga, KM3io, KM3DB
+
+julia> RainbowAlga.setfps!(20)
+
+julia> detector = Detector(133)
+Detector 133 (v5) with 21 strings and 399 modules.
+
+julia> f = ROOTFile("KM3NeT_00000133_00013336.jterbr.jppmuon_aashower_static.offline.v9.2.root")
+ROOTFile{OfflineTree (84963 events)}
+
+julia> hits = f.offline[1].hits;
+
+julia> add!(hits)
+1-element Vector{RainbowAlga.HitsCloud}:
+ HitsCloud 'hawaii' (528 hits)
+
+julia> RainbowAlga.run()
+
+julia> clearhits!()  # use this to clear all hits
+RainbowAlga.HitsCloud[]
+
+julia> hits = f.offline[2].hits;  # another event's hits...
+
+julia> add!(hits)
+
+julia> add!(hits)
+1-element Vector{RainbowAlga.HitsCloud}:
+ HitsCloud 'hawaii' (530 hits)
+ ```
+
 Check out the `scripts/vhe_paper.jl` script for more inspiration.
 
 ## Performance Issues

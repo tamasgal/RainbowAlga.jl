@@ -18,8 +18,8 @@ function main()
     RainbowAlga._rba.simparams.loop_enabled = false
     RainbowAlga._rba.simparams.frame_idx = 1950
 
-    detector = Detector("/Users/tamasgal/Dev/vhe-event-and-calibration-data/detector.dynamical.datx")
-    f = ROOTFile("/Users/tamasgal/Dev/vhe-event-and-calibration-data/KM3NeT_00000133_00014728.data.jppmuon_aashower_dynamic.offline.v9.0.vhe.root")
+    detector = Detector("vhe-event-and-calibration-data/detector.dynamical.datx")
+    f = ROOTFile("vhe-event-and-calibration-data/KM3NeT_00000133_00014728.data.jppmuon_aashower_dynamic.offline.v9.0.vhe.root")
 
     event = first(f.offline)
     muon = bestjppmuon(event)

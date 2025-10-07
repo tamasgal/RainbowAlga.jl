@@ -19,9 +19,9 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
-CairoMakie = "0.13.1"
+CairoMakie = "0.13.1, 0.14, 0.15"
 Corpuscles = "2"
-GLMakie = "^0.10.16, ^0.11"
+GLMakie = "^0.10.16, ^0.11, ^0.12, ^0.13.0"
 KM3io = "^0.16, ^0.17, ^0.18"
 julia = "^1.8"
 

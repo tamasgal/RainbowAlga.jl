@@ -364,12 +364,17 @@ function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewi
 end
 
 function run(rba::RBA; interactive=true)
+    println("Registering events")
     register_events(rba)
+    println("Centering scene")
     center!(rba.scene)
+    println("Updating camera")
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
     if interactive
+        println("Starting interactive event loop thread")
         Threads.@spawn :interactive start_eventloop(rba)
     else
+        println("Starting non-interactive event loop")
         start_eventloop(rba)
     end
     nothing
@@ -460,12 +465,14 @@ function update_infotext!(rba)
         push!(lines, "Hits cloud #$(idx): $(rba.hitsclouds[idx].description)")
     end
 
-    rba.infobox.text = join(lines, "\n")
+    # rba.infobox.text = join(lines, "\n")
 end
 
 function start_eventloop(rba)
-    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
+    println("Creating screen")
+    screen = display(GLMakie.Screen(start_renderloop=true, focus_on_show=true, title="RainbowAlga"), rba.scene)
     glw = screen.glscreen
+    println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
     GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
 
@@ -477,22 +484,27 @@ function start_eventloop(rba)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
     # on(screen.render_tick) do tick
-    while isopen(screen)
+    println("Entering render loop")
+    # while isopen(screen)
+    on(screen.render_tick) do tick
+        println("tick")
         frame_start = time()
 
-        if rba.simparams.quit
-            rba.simparams.quit = false
-            break
-        end
+        # if rba.simparams.quit
+        #     rba.simparams.quit = false
+        #     break
+        # end
 
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
         end
 
+        # println("rotating cam")
         rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
         t = rba.simparams.t_offset + rba.simparams.frame_idx
 
+        # println("rendering hits")
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
             !isselected && continue
@@ -500,16 +512,21 @@ function start_eventloop(rba)
             hitscloud.mesh.markersize = hit_sizes
         end
 
+        # println("drawing tracks")
         for track ∈ rba.tracks
             draw!(track, t)
         end
 
+        # println("Updating infotext")
         update_infotext!(rba)
 
-        GLMakie.pollevents(screen, Makie.RegularRenderTick)
-        GLMakie.render_frame(screen)
+        # println("Polling events")
+        #GLMakie.pollevents(screen, Makie.RegularRenderTick)
+        # println("rendering frame")
+        # GLMakie.render_frame(screen)
 
-        GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
+        # println("swapping buffers")
+        # GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
 
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
@@ -523,7 +540,8 @@ function start_eventloop(rba)
         #     #println("Frame saved as rba.png")
         # end
 
-        yield()
+        # println("yielding")
+        # yield()
 
         Δt = time() - frame_start
         sleep_time = 1.0/rba.simparams.fps - Δt
@@ -531,7 +549,7 @@ function start_eventloop(rba)
             sleep(sleep_time)
         end
     end
-    #wait(screen)
+    wait(screen)
 
     GLMakie.destroy!(screen)
 end

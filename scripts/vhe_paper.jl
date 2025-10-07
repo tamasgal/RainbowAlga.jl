@@ -70,9 +70,9 @@ function main()
         Point3f(0, 0.6, 0),
     ] * compass_size
     xyz .+= compass_pos
-    xy = Point2f0.(xyz)
+    xy = Point2f.(xyz)
     f =  faces(Polygon(xy))
-    m = GeometryBasics.Mesh(Point3f0.(xyz), f)
+    m = GeometryBasics.Mesh(Point3f.(xyz), f)
     mesh!(RainbowAlga._rba.scene, m; color = :red)
 
 

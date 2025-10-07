@@ -70,9 +70,11 @@ function draw!(track::Track, t; trail_length=0)
     endpos =  track.pos + track.v * track.dir * (t - track.t) / 1e9
     track._lines[1] = [startpos, endpos]
     if track.cone.visible[]
-        track.cone[1][] = track.cone_x .+ endpos.x
-        track.cone[2][] = track.cone_y .+ endpos.y
-        track.cone[3][] = track.cone_z .+ endpos.z
+        Makie.update!(
+            track.cone_x .+ endpos.x,
+            track.cone_y .+ endpos.y,
+            track.cone_z .+ endpos.z,
+        )
     end
     track
 end
@@ -133,7 +135,7 @@ function RBA(detector::Detector; kwargs...)
 end
 
 function display3d(rba::RBA)
-    Threads.@spawn start_eventloop(rba)
+    start_eventloop(rba)
 end
 
 function save_perspective(rba::RBA, idx::Int)
@@ -372,7 +374,7 @@ function run(rba::RBA; interactive=true)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
     if interactive
         println("Starting interactive event loop thread")
-        Threads.@spawn :interactive start_eventloop(rba)
+        start_eventloop(rba)
     else
         println("Starting non-interactive event loop")
         start_eventloop(rba)
@@ -470,84 +472,44 @@ end
 
 function start_eventloop(rba)
     println("Creating screen")
-    screen = display(GLMakie.Screen(start_renderloop=true, focus_on_show=true, title="RainbowAlga"), rba.scene)
+    screen = display(rba.scene)
     glw = screen.glscreen
     println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
     GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
 
     scene = rba.scene
+    # You should be able to do any processing on another thread with a channel:
+    channel = Channel(Inf, spawn=true) do chan
+        for tick in chan
+            if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
+                rba.simparams.frame_idx = 0
+            end
 
-    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
-    # subwindow.clear = true
-    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
-    # plot!(subwindow, [1, 2, 3], rand(3))
+            # println("rotating cam")
+            rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
-    # on(screen.render_tick) do tick
-    println("Entering render loop")
-    # while isopen(screen)
-    on(screen.render_tick) do tick
-        println("tick")
-        frame_start = time()
+            t = rba.simparams.t_offset + rba.simparams.frame_idx
 
-        # if rba.simparams.quit
-        #     rba.simparams.quit = false
-        #     break
-        # end
+            # println("rendering hits")
+            for (idx, hitscloud) in enumerate(rba.hitsclouds)
+                isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
+                !isselected && continue
+                hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1 + (rba.simparams.hit_scaling / 5)) * sqrt(h.tot / 255) : 0 for h ∈ hitscloud.hits]
+                hitscloud.mesh.markersize = hit_sizes
+            end
 
-        if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
-            rba.simparams.frame_idx = 0
-        end
-
-        # println("rotating cam")
-        rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
-
-        t = rba.simparams.t_offset + rba.simparams.frame_idx
-
-        # println("rendering hits")
-        for (idx, hitscloud) in enumerate(rba.hitsclouds)
-            isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
-            !isselected && continue
-            hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
-            hitscloud.mesh.markersize = hit_sizes
-        end
-
-        # println("drawing tracks")
-        for track ∈ rba.tracks
-            draw!(track, t)
-        end
-
-        # println("Updating infotext")
-        update_infotext!(rba)
-
-        # println("Polling events")
-        #GLMakie.pollevents(screen, Makie.RegularRenderTick)
-        # println("rendering frame")
-        # GLMakie.render_frame(screen)
-
-        # println("swapping buffers")
-        # GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
-
-        if !isstopped(rba)
+            # println("drawing tracks")
+            for track ∈ rba.tracks
+                draw!(track, t)
+            end
+            # println("Updating infotext")
+            update_infotext!(rba)
             rba.simparams.frame_idx += rba.simparams.speed
         end
-
-        # if rba.simparams.save_next_frame
-        #     println("Saving frame")
-        #     rba.simparams.save_next_frame = false
-        #     @show frame
-        #     #save("rba.png", colorbuffer(rba.scene))
-        #     #println("Frame saved as rba.png")
-        # end
-
-        # println("yielding")
-        # yield()
-
-        Δt = time() - frame_start
-        sleep_time = 1.0/rba.simparams.fps - Δt
-        if sleep_time > 0
-            sleep(sleep_time)
-        end
+    end
+    on(screen.render_tick) do tick
+        put!(channel, tick)
     end
     wait(screen)
 

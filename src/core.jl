@@ -465,7 +465,7 @@ function update_infotext!(rba)
         push!(lines, "Hits cloud #$(idx): $(rba.hitsclouds[idx].description)")
     end
 
-    # rba.infobox.text = join(lines, "\n")
+    rba.infobox.text = join(lines, "\n")
 end
 
 function start_eventloop(rba)

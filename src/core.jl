@@ -132,8 +132,16 @@ function RBA(detector::Detector; kwargs...)
     rba
 end
 
+get_current_cam_position(rba::RBA) = rba.cam.eyeposition.val
+get_current_cam_position() = get_current_cam_position(global_rba())
+get_current_cam_target(rba::RBA) = rba.cam.lookat.val
+get_current_cam_target() = get_current_cam_target(global_rba())
+
 function save_perspective(rba::RBA, idx::Int)
-    rba.perspectives[idx] = (rba.cam.eyeposition.val, rba.cam.lookat.val)
+    pos = get_current_cam_position(rba)
+    target = get_current_cam_target(rba)
+    rba.perspectives[idx] = (pos, target)
+    println("Perspective $idx saved.\n  Position: $(pos)\n  Target: $(target)")
 end
 save_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
@@ -449,6 +457,8 @@ function update_infotext!(rba)
     push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns" rba.simparams.t_offset)
     push!(lines, @sprintf "ToT cut = %.1f ns" rba.simparams.min_tot)
+    push!(lines, @sprintf "Position: x=%.1f y=%.1f z=%1.f" get_current_cam_position()...)
+    push!(lines, @sprintf "Target: x=%.1f y=%.1f z=%1.f" get_current_cam_target()...)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream

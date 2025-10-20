@@ -109,9 +109,9 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
-   # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-   # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
-   # hits_mesh_descriptions::Vector{String} = []
+    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
+    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
+    hits_mesh_descriptions::Vector{String} = []
     _plots::Dict{String, Any} = Dict()
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
@@ -132,24 +132,18 @@ function RBA(detector::Detector; kwargs...)
     rba
 end
 
-function display3d(rba::RBA)
-    Threads.@spawn start_eventloop(rba)
-end
-
 function save_perspective(rba::RBA, idx::Int)
     rba.perspectives[idx] = (rba.cam.eyeposition.val, rba.cam.lookat.val)
 end
-save_perspective(idx::Int) = save_perspective(_rba, idx::Int)
+save_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
     rba.perspectives[idx] = (eyeposition, lookat)
 end
-save_perspective(idx::Int, eyeposition, lookat) = save_perspective(_rba, idx::Int, eyeposition, lookat)
+save_perspective(idx::Int, eyeposition, lookat) = save_perspective(global_rba(), idx::Int, eyeposition, lookat)
 function load_perspective(rba::RBA, idx::Int)
     update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
 end
-load_perspective(idx::Int) = save_perspective(_rba, idx::Int)
-
-# const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
+load_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 
 
 """
@@ -170,8 +164,6 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     rba.simparams.t_offset = t_min
     rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
-    # rba.hits = hits
-
     cmap = getproperty(ColorSchemes, colorscheme)
     hits_mesh = meshscatter!(
         rba.scene,
@@ -184,7 +176,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
 end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
-    add!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+    add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
 function clearhits!(rba::RBA)
     for hitscloud in rba.hitsclouds
@@ -192,7 +184,7 @@ function clearhits!(rba::RBA)
     end
     empty!(rba.hitsclouds)
 end
-clearhits!() = clearhits!(_rba)
+clearhits!() = clearhits!(global_rba())
 function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     if hitscloud_idx < 1 || hitscloud_idx > length(rba.hitsclouds)
         error("No hits cloud with index $(hitscloud_idx) found. There is a total of $(length(rba.hitsclouds)) hits clouds to choose from.")
@@ -205,7 +197,7 @@ function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     nothing
 end
 
-recolor!(hitscloud_idx::Integer, colors) = recolor!(_rba, hitscloud_idx, colors)
+recolor!(hitscloud_idx::Integer, colors) = recolor!(global_rba(), hitscloud_idx, colors)
 
 function update!(rba::RBA, track::T, hits, particle_name::AbstractString, track_id::Int) where T<:Union{Track, Trk}
     positions = Observable(generate_hit_positions(hits))
@@ -245,8 +237,8 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
-add!(track::T; kwargs...) where T<:Union{Track, Trk} = add!(_rba, track; kwargs...)
-add!(trk::Trk; kwargs...) = add!(_rba, Track(_rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
+add!(track::T; kwargs...) where T<:Union{Track, Trk} = add!(global_rba(), track; kwargs...)
+add!(trk::Trk; kwargs...) = add!(global_rba(), Track(global_rba().scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
 
 """
 
@@ -343,7 +335,7 @@ function update!(rba::RBA, det::Detector; simplified_doms=false, dom_diameter=0.
 
     nothing
 end
-update!(d::Detector; kwargs...) = update!(_rba, d; kwargs...)
+update!(d::Detector; kwargs...) = update!(global_rba(), d; kwargs...)
 
 """
 
@@ -379,7 +371,7 @@ function run(rba::RBA; interactive=true)
     end
     nothing
 end
-run(;interactive=true) = run(_rba; interactive=interactive)
+run(;interactive=true) = run(global_rba(); interactive=interactive)
 
 """
 Run the RainbowAlga GUI and display the specified event.
@@ -483,13 +475,7 @@ function start_eventloop(rba)
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    # on(screen.render_tick) do tick
-    println("Entering render loop")
-    # while isopen(screen)
     on(screen.render_tick) do tick
-        println("tick")
-        frame_start = time()
-
         # if rba.simparams.quit
         #     rba.simparams.quit = false
         #     break
@@ -499,12 +485,10 @@ function start_eventloop(rba)
             rba.simparams.frame_idx = 0
         end
 
-        # println("rotating cam")
         rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
         t = rba.simparams.t_offset + rba.simparams.frame_idx
 
-        # println("rendering hits")
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
             !isselected && continue
@@ -512,41 +496,14 @@ function start_eventloop(rba)
             hitscloud.mesh.markersize = hit_sizes
         end
 
-        # println("drawing tracks")
         for track ∈ rba.tracks
             draw!(track, t)
         end
 
-        # println("Updating infotext")
         update_infotext!(rba)
-
-        # println("Polling events")
-        #GLMakie.pollevents(screen, Makie.RegularRenderTick)
-        # println("rendering frame")
-        # GLMakie.render_frame(screen)
-
-        # println("swapping buffers")
-        # GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
 
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
-        end
-
-        # if rba.simparams.save_next_frame
-        #     println("Saving frame")
-        #     rba.simparams.save_next_frame = false
-        #     @show frame
-        #     #save("rba.png", colorbuffer(rba.scene))
-        #     #println("Frame saved as rba.png")
-        # end
-
-        # println("yielding")
-        # yield()
-
-        Δt = time() - frame_start
-        sleep_time = 1.0/rba.simparams.fps - Δt
-        if sleep_time > 0
-            sleep(sleep_time)
         end
     end
     wait(screen)

@@ -188,8 +188,8 @@ slower(rba::RBA, n::Int) = rba.simparams.speed -= n
 increasetot(rba::RBA, t::Float64) = rba.simparams.min_tot += t
 decreasetot(rba::RBA, t::Float64) = rba.simparams.min_tot -= t
 speed(rba::RBA) = rba.simparams.speed
-toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !_rba.simparams.rotation_enabled
-toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !_rba.simparams.loop_enabled
+toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !global_rba().simparams.rotation_enabled
+toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !global_rba().simparams.loop_enabled
 rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
 function next_hits_colouring(rba::RBA)
     hidehits!(rba)
@@ -215,11 +215,11 @@ function setfps!(rba::RBA, fps::Integer)
     rba.simparams.fps = fps
     nothing
 end
-setfps!(fps::Integer) = setfps!(_rba, fps)
+setfps!(fps::Integer) = setfps!(global_rba(), fps)
 
 function describe!(rba::RBA, hitscloud_idx::Integer, description::AbstractString)
     rba.hitsclouds[hitscloud_idx].description = description
 end
 function describe!(hitscloud_idx::Integer, description::AbstractString)
-    describe!(_rba, hitscloud_idx, description)
+    describe!(global_rba(), hitscloud_idx, description)
 end

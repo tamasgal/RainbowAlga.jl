@@ -109,9 +109,9 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
-   # hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-   # hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
-   # hits_mesh_descriptions::Vector{String} = []
+    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
+    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
+    hits_mesh_descriptions::Vector{String} = []
     _plots::Dict{String, Any} = Dict()
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
@@ -132,24 +132,26 @@ function RBA(detector::Detector; kwargs...)
     rba
 end
 
-function display3d(rba::RBA)
-    Threads.@spawn start_eventloop(rba)
-end
+get_current_cam_position(rba::RBA) = rba.cam.eyeposition.val
+get_current_cam_position() = get_current_cam_position(global_rba())
+get_current_cam_target(rba::RBA) = rba.cam.lookat.val
+get_current_cam_target() = get_current_cam_target(global_rba())
 
 function save_perspective(rba::RBA, idx::Int)
-    rba.perspectives[idx] = (rba.cam.eyeposition.val, rba.cam.lookat.val)
+    pos = get_current_cam_position(rba)
+    target = get_current_cam_target(rba)
+    rba.perspectives[idx] = (pos, target)
+    println("Perspective $idx saved.\n  Position: $(pos)\n  Target: $(target)")
 end
-save_perspective(idx::Int) = save_perspective(_rba, idx::Int)
+save_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
     rba.perspectives[idx] = (eyeposition, lookat)
 end
-save_perspective(idx::Int, eyeposition, lookat) = save_perspective(_rba, idx::Int, eyeposition, lookat)
+save_perspective(idx::Int, eyeposition, lookat) = save_perspective(global_rba(), idx::Int, eyeposition, lookat)
 function load_perspective(rba::RBA, idx::Int)
     update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
 end
-load_perspective(idx::Int) = save_perspective(_rba, idx::Int)
-
-# const rba = RBA(detector=Detector(joinpath(@__DIR__, "assets", "km3net_jul13_90m_r1494_corrected.detx")))
+load_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 
 
 """
@@ -170,8 +172,6 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     rba.simparams.t_offset = t_min
     rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
-    # rba.hits = hits
-
     cmap = getproperty(ColorSchemes, colorscheme)
     hits_mesh = meshscatter!(
         rba.scene,
@@ -184,7 +184,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
 end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
-    add!(_rba, hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+    add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
 function clearhits!(rba::RBA)
     for hitscloud in rba.hitsclouds
@@ -192,7 +192,7 @@ function clearhits!(rba::RBA)
     end
     empty!(rba.hitsclouds)
 end
-clearhits!() = clearhits!(_rba)
+clearhits!() = clearhits!(global_rba())
 function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     if hitscloud_idx < 1 || hitscloud_idx > length(rba.hitsclouds)
         error("No hits cloud with index $(hitscloud_idx) found. There is a total of $(length(rba.hitsclouds)) hits clouds to choose from.")
@@ -205,7 +205,7 @@ function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     nothing
 end
 
-recolor!(hitscloud_idx::Integer, colors) = recolor!(_rba, hitscloud_idx, colors)
+recolor!(hitscloud_idx::Integer, colors) = recolor!(global_rba(), hitscloud_idx, colors)
 
 function update!(rba::RBA, track::T, hits, particle_name::AbstractString, track_id::Int) where T<:Union{Track, Trk}
     positions = Observable(generate_hit_positions(hits))
@@ -245,8 +245,8 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
-add!(track::T; kwargs...) where T<:Union{Track, Trk} = add!(_rba, track; kwargs...)
-add!(trk::Trk; kwargs...) = add!(_rba, Track(_rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
+add!(track::T; kwargs...) where T<:Union{Track, Trk} = add!(global_rba(), track; kwargs...)
+add!(trk::Trk; kwargs...) = add!(global_rba(), Track(global_rba().scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
 
 """
 
@@ -343,7 +343,7 @@ function update!(rba::RBA, det::Detector; simplified_doms=false, dom_diameter=0.
 
     nothing
 end
-update!(d::Detector; kwargs...) = update!(_rba, d; kwargs...)
+update!(d::Detector; kwargs...) = update!(global_rba(), d; kwargs...)
 
 """
 
@@ -364,17 +364,22 @@ function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewi
 end
 
 function run(rba::RBA; interactive=true)
+    println("Registering events")
     register_events(rba)
+    println("Centering scene")
     center!(rba.scene)
+    println("Updating camera")
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
     if interactive
+        println("Starting interactive event loop thread")
         Threads.@spawn :interactive start_eventloop(rba)
     else
+        println("Starting non-interactive event loop")
         start_eventloop(rba)
     end
     nothing
 end
-run(;interactive=true) = run(_rba; interactive=interactive)
+run(;interactive=true) = run(global_rba(); interactive=interactive)
 
 """
 Run the RainbowAlga GUI and display the specified event.
@@ -452,6 +457,8 @@ function update_infotext!(rba)
     push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns" rba.simparams.t_offset)
     push!(lines, @sprintf "ToT cut = %.1f ns" rba.simparams.min_tot)
+    push!(lines, @sprintf "Position: x=%.1f y=%.1f z=%1.f" get_current_cam_position()...)
+    push!(lines, @sprintf "Target: x=%.1f y=%.1f z=%1.f" get_current_cam_target()...)
 
     # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
     # we need to make sure it does not overflow, but we should make this better upstream
@@ -464,8 +471,10 @@ function update_infotext!(rba)
 end
 
 function start_eventloop(rba)
-    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
+    println("Creating screen")
+    screen = display(GLMakie.Screen(start_renderloop=true, focus_on_show=true, title="RainbowAlga"), rba.scene)
     glw = screen.glscreen
+    println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
     GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
 
@@ -476,14 +485,11 @@ function start_eventloop(rba)
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    # on(screen.render_tick) do tick
-    while isopen(screen)
-        frame_start = time()
-
-        if rba.simparams.quit
-            rba.simparams.quit = false
-            break
-        end
+    on(screen.render_tick) do tick
+        # if rba.simparams.quit
+        #     rba.simparams.quit = false
+        #     break
+        # end
 
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
@@ -506,32 +512,11 @@ function start_eventloop(rba)
 
         update_infotext!(rba)
 
-        GLMakie.pollevents(screen, Makie.RegularRenderTick)
-        GLMakie.render_frame(screen)
-
-        GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
-
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
         end
-
-        # if rba.simparams.save_next_frame
-        #     println("Saving frame")
-        #     rba.simparams.save_next_frame = false
-        #     @show frame
-        #     #save("rba.png", colorbuffer(rba.scene))
-        #     #println("Frame saved as rba.png")
-        # end
-
-        yield()
-
-        Δt = time() - frame_start
-        sleep_time = 1.0/rba.simparams.fps - Δt
-        if sleep_time > 0
-            sleep(sleep_time)
-        end
     end
-    #wait(screen)
+    wait(screen)
 
     GLMakie.destroy!(screen)
 end

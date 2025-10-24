@@ -216,7 +216,7 @@ function main()
 
     detector = Detector("vhe-event-and-calibration-data/detector.dynamical.datx")
 
-    hits = filter(h -> h.dom_id != 808950076 && h.channel_id != 3, event.hits)
+    hits = filter(h -> !(h.dom_id == 808950076 && h.channel_id == 3), event.hits)
     hits = select_first_hits(hits; n = 5, maxtot = 256)
     colors = generate_colors(
         muon,

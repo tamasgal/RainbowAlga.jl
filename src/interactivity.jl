@@ -3,7 +3,7 @@
 
 Registers keyboard and mouse events for the interactive access.
 """
-function register_events(rba::RBA)
+function register_events(rba::RBA, screen)
     scene = rba.scene
     on(events(scene).mousebutton) do event
         # if scene.events.hasfocus[]
@@ -14,7 +14,7 @@ function register_events(rba::RBA)
         #     rba.simparams.fps = 15
         # end
     end
-    on(events(scene).keyboardbutton, priority = 20) do event
+    on(events(scene).keyboardbutton, priority = 20000000) do event
         if ispressed(scene, Makie.Keyboard.r)
             reset_time(rba)
             return Consume()
@@ -117,9 +117,34 @@ function register_events(rba::RBA)
             next_hits_colouring(rba)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.s)
-            rba.simparams.save_next_frame = true
-            return Consume()
+        @async try
+            if ispressed(scene, Makie.Keyboard.s)
+                rba.simparams.save_next_frame = true
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.v)
+                println(" -> v pressed")
+                vrs = rba.vrs
+                if !vrs.isrecording
+                    println("Video recording started.")
+                    vrs.isrecording = true
+                    vrs.videostream = video_stream(screen)
+                else
+                    vrs.isrecording = false
+                    println("Video recording stopped.")
+                    if !isnothing(vrs.videostream)
+
+                        fname = "RBA_movie_$(lpad(vrs.counter, 3, '0')).mp4"
+                        _save(fname, vrs.videostream.vio)
+                        println("Movie exported as '$(fname)'.")
+                        vrs.counter += 1
+                    end
+                    # not sure how to close properly, for now just GC-feeding it
+                    vrs.videostream = nothing
+                end
+            end
+        catch e
+            @warn "Error in keyboard event handler" exception=e
         end
         if ispressed(scene, Makie.Keyboard.x)
             rba.simparams.show_infobox = !rba.simparams.show_infobox

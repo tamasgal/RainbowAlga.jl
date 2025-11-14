@@ -109,6 +109,7 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
+    vrs::VideoRecordingState = VideoRecordingState(false, nothing, 1)
     hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
@@ -120,7 +121,6 @@ function RBA(detector::Detector; kwargs...)
     rba = RBA(kwargs...)
 
     update!(rba, detector)
-    register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
 
@@ -365,7 +365,6 @@ end
 
 function run(rba::RBA; interactive=true)
     println("Registering events")
-    register_events(rba)
     println("Centering scene")
     center!(rba.scene)
     println("Updating camera")
@@ -480,10 +479,16 @@ function start_eventloop(rba)
 
     scene = rba.scene
 
+    register_events(rba, screen)
+
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
     # subwindow.clear = true
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
+
+    screenshot_counter = 0;
+
+    recordring_io = nothing;
 
     on(screen.render_tick) do tick
         # if rba.simparams.quit
@@ -514,6 +519,19 @@ function start_eventloop(rba)
 
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
+        end
+
+        if rba.simparams.save_next_frame
+            rba.simparams.save_next_frame = false
+            fname = "RBA_$(lpad(screenshot_counter, 3, '0')).png"
+            save(fname, scene)
+            println("Frame saved as $(fname)")
+            screenshot_counter += 1
+        end
+
+        if rba.vrs.isrecording && !isnothing(rba.vrs.videostream)
+            vio = rba.vrs.videostream
+            put!(vio.chan, nothing)
         end
     end
     wait(screen)

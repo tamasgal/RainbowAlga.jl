@@ -1,7 +1,7 @@
 name = "RainbowAlga"
 uuid = "63f1f1a9-5054-400b-8c42-42c880e99857"
 authors = ["Tamas Gal <tamas.gal@fau.de>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"

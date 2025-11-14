@@ -14,7 +14,7 @@ function register_events(rba::RBA)
         #     rba.simparams.fps = 15
         # end
     end
-    on(events(scene).keyboardbutton, priority = 20) do event
+    on(events(scene).keyboardbutton, priority = 20000000) do event
         if ispressed(scene, Makie.Keyboard.r)
             reset_time(rba)
             return Consume()
@@ -119,6 +119,13 @@ function register_events(rba::RBA)
         end
         if ispressed(scene, Makie.Keyboard.s)
             rba.simparams.save_next_frame = true
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.v)
+            if rba.simparams.recording
+                rba.simparams.finalise_recording = true
+            end
+            rba.simparams.recording = !rba.simparams.recording
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.x)

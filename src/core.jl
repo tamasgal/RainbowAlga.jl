@@ -485,6 +485,10 @@ function start_eventloop(rba)
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
+    screenshot_counter = 0;
+
+    recordring_io = nothing;
+
     on(screen.render_tick) do tick
         # if rba.simparams.quit
         #     rba.simparams.quit = false
@@ -514,6 +518,32 @@ function start_eventloop(rba)
 
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
+        end
+
+        if rba.simparams.save_next_frame
+            rba.simparams.save_next_frame = false
+            fname = "RBA_$(lpad(screenshot_counter, 3, '0')).png"
+            save(fname, scene)
+            println("Frame saved as $(fname)")
+            screenshot_counter += 1
+        end
+
+        if rba.simparams.recording
+            if isnothing(rba.simparams.video_stream)
+                rba.simparams.video_stream = VideoStream(scene)
+            end
+            # recordframe!(rba.simparams.video_stream)
+        end
+        if rba.simparams.finalise_recording
+            rba.simparams.finalise_recording = false
+            if !isnothing(rba.simparams.video_stream)
+                # close(recording_io)
+                screenshot_counter += 1
+                fname = "RBA_$(lpad(screenshot_counter, 3, '0')).mp4"
+                save(fname, rba.simparams.video_stream)
+                println("Video export complete.")
+                rba.simparams.video_stream = nothing
+            end
         end
     end
     wait(screen)

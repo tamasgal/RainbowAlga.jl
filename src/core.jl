@@ -109,6 +109,7 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
+    vrs::VideoRecordingState = VideoRecordingState(false, nothing, 1)
     hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
@@ -120,7 +121,6 @@ function RBA(detector::Detector; kwargs...)
     rba = RBA(kwargs...)
 
     update!(rba, detector)
-    register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
 
@@ -365,7 +365,6 @@ end
 
 function run(rba::RBA; interactive=true)
     println("Registering events")
-    register_events(rba)
     println("Centering scene")
     center!(rba.scene)
     println("Updating camera")
@@ -480,6 +479,8 @@ function start_eventloop(rba)
 
     scene = rba.scene
 
+    register_events(rba, screen)
+
     # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
     # subwindow.clear = true
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
@@ -528,22 +529,9 @@ function start_eventloop(rba)
             screenshot_counter += 1
         end
 
-        if rba.simparams.recording
-            if isnothing(rba.simparams.video_stream)
-                rba.simparams.video_stream = VideoStream(scene)
-            end
-            # recordframe!(rba.simparams.video_stream)
-        end
-        if rba.simparams.finalise_recording
-            rba.simparams.finalise_recording = false
-            if !isnothing(rba.simparams.video_stream)
-                # close(recording_io)
-                screenshot_counter += 1
-                fname = "RBA_$(lpad(screenshot_counter, 3, '0')).mp4"
-                save(fname, rba.simparams.video_stream)
-                println("Video export complete.")
-                rba.simparams.video_stream = nothing
-            end
+        if rba.vrs.isrecording && !isnothing(rba.vrs.videostream)
+            vio = rba.vrs.videostream
+            put!(vio.chan, nothing)
         end
     end
     wait(screen)

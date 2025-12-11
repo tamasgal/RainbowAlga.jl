@@ -3,7 +3,7 @@
 
 Registers keyboard and mouse events for the interactive access.
 """
-function register_events(rba::RBA, screen)
+function register_events(rba::RBA, screen, recorder)
     scene = rba.scene
     on(events(scene).mousebutton) do event
         # if scene.events.hasfocus[]
@@ -33,7 +33,7 @@ function register_events(rba::RBA, screen)
             rba.simparams.frame_idx += 200
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.a)
+        if ispressed(scene, Makie.Keyboard.o)
             toggle_rotation(rba)
             return Consume()
         end
@@ -117,34 +117,24 @@ function register_events(rba::RBA, screen)
             next_hits_colouring(rba)
             return Consume()
         end
-        @async try
-            if ispressed(scene, Makie.Keyboard.s)
-                rba.simparams.save_next_frame = true
-                return Consume()
+        if ispressed(scene, Makie.Keyboard.p)
+            fname = "RBA_$(lpad(rba.simparams.screenshot_counter, 3, '0')).png"
+            @async save(fname, scene)
+            println("Screenshot saved as $(fname)")
+            rba.simparams.screenshot_counter += 1
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.v)
+            if recorder.recording[]
+                println("Recording stopped...")
+                stop!(recorder)
+            else
+                println("Recording started...")
+                fname = "RBA_$(lpad(rba.simparams.recording_counter, 3, '0')).mp4"
+                start!(recorder; outfname=fname)
+                rba.simparams.recording_counter += 1
             end
-            if ispressed(scene, Makie.Keyboard.v)
-                println(" -> v pressed")
-                vrs = rba.vrs
-                if !vrs.isrecording
-                    println("Video recording started.")
-                    vrs.isrecording = true
-                    vrs.videostream = video_stream(screen)
-                else
-                    vrs.isrecording = false
-                    println("Video recording stopped.")
-                    if !isnothing(vrs.videostream)
-
-                        fname = "RBA_movie_$(lpad(vrs.counter, 3, '0')).mp4"
-                        _save(fname, vrs.videostream.vio)
-                        println("Movie exported as '$(fname)'.")
-                        vrs.counter += 1
-                    end
-                    # not sure how to close properly, for now just GC-feeding it
-                    vrs.videostream = nothing
-                end
-            end
-        catch e
-            @warn "Error in keyboard event handler" exception=e
+            return Consume()
         end
         if ispressed(scene, Makie.Keyboard.x)
             rba.simparams.show_infobox = !rba.simparams.show_infobox
@@ -154,11 +144,7 @@ function register_events(rba::RBA, screen)
             toggle_loop(rba)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.l)
-            toggle_loop(rba)
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.d)
+        if ispressed(scene, Makie.Keyboard.b)
             if rba.simparams.darkmode_enabled
                 scene.backgroundcolor = RGBf(0.9, 0.9, 0.9)
                 rba.infobox.color = RGBf(0.1, 0.1, 0.1)
@@ -194,10 +180,6 @@ function register_events(rba::RBA, screen)
             if rba.simparams.hit_scaling > 1
                 rba.simparams.hit_scaling -= 1
             end
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.q)
-            rba.simparams.quit = true
             return Consume()
         end
     end

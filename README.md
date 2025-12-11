@@ -110,15 +110,15 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>,</kbd>      | Decrease ToT cut          |
 | <kbd>.</kbd>      | Increase ToT cut          |
 | <kbd>R</kbd>      | Reset time to 0           |
-| <kbd>A</kbd>      | Toggle auto-rotation      |
+| <kbd>O</kbd>      | Toggle auto-rotation      |
 | <kbd>L</kbd>      | Toggle loop               |
-| <kbd>D</kbd>      | Toggle dark mode          |
+| <kbd>B</kbd>      | Toggle dark mode          |
 | <kbd>C</kbd>      | Cycle between hit clouds  |
-| <kbd>S</kbd>      | Save a screenshot         |
+| <kbd>P</kbd>      | Save a screenshot         |
+| <kbd>V</kbd>      | Record video              |
 | <kbd>1</kbd> - <kbd>9</kbd>      | Load perspective |
 | <kbd>Shift</kbd><kbd>1</kbd> - <kbd>9</kbd>      | Save perspective |
 | <kbd>Space</kbd>  | Play/Pause                |
-| <kbd>Q</kbd>      | Quit                      |
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

@@ -24,13 +24,10 @@ Base.@kwdef mutable struct SimParams
     loop_enabled::Bool = true
     darkmode_enabled::Bool = false
     show_infobox::Bool = true
-    save_next_frame::Bool = false
-    recording::Bool = false
-    finalise_recording::Bool = false
-    video_stream::Union{Nothing, VideoStream} = nothing
+    screenshot_counter::Int = 0
+    recording_counter::Int = 0
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
     hit_scaling::Int = 1  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second
-    quit::Bool = false
 end
 

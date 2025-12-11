@@ -27,7 +27,7 @@ Base.@kwdef mutable struct SimParams
     screenshot_counter::Int = 0
     recording_counter::Int = 0
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
-    hit_scaling::Int = 1  # factor to multiply the size of the hits
+    hit_scaling::Int = 5  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second
 end
 

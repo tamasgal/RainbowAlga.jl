@@ -74,7 +74,7 @@ function start!(recorder::VideoRecorder; outfname="foo.mp4")
     recorder.recording[] = true
     recorder.frame_count[] = 0
     # Use bounded channel to prevent memory buildup if encoding is slow
-    recorder.frames = Channel{Matrix{ColorTypes.RGB{N0f8}}}(100)
+    recorder.frames = Channel{Matrix{ColorTypes.RGB{N0f8}}}(Inf)
     
     recorder.task = Makie.spawnat(2) do
         for frame in recorder.frames
@@ -129,11 +129,14 @@ function fps_renderloop(screen::GLMakie.Screen, recorder)
         if recorder.recording[]
             frame = copy_colorbuffer!(screen)
             # Non-blocking put with timeout to avoid hanging
-            if !isready(recorder.frames) || length(recorder.frames.data) < 90
+            # TODO: currently the buffer length is not checked, so the memory
+            # can fill easily fill up. This proably needs to be made a little
+            # bit more user-friendly ;) Let's leave it here for now...
+            # if !isready(recorder.frames) || length(recorder.frames.data) < 90
                 put!(recorder.frames, frame)
-            else
-                @warn "Frame buffer full, dropping frame"
-            end
+            # else
+            #     @warn "Frame buffer full, dropping frame"
+            # end
         end
         sleep(screen.timer)
     end

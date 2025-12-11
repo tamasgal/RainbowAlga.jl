@@ -477,7 +477,7 @@ function start_eventloop(rba; interactive=true)
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    counters = get_recording_counters()
+    counters = get_capture_counters()
     rba.simparams.screenshot_counter = counters.screenshot + 1
     rba.simparams.recording_counter = counters.recording + 1
 
@@ -528,7 +528,7 @@ end
 """
 Return the current recording counters for screenshots and videos.
 """
-function get_recording_counters()
+function get_capture_counters()
     files = readdir()
 
     function extract_counter(path)
@@ -537,8 +537,8 @@ function get_recording_counters()
     end
 
     counters = filter(!isnothing, extract_counter.(files))
-    mp4_counters = Int[]
-    png_counters = Int[]
+    mp4_counters = [0]
+    png_counters = [0]
 
     for (counter, ext) in counters
         if ext == "mp4"

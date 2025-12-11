@@ -3,7 +3,7 @@
 
 Registers keyboard and mouse events for the interactive access.
 """
-function register_events(rba::RBA)
+function register_events(rba::RBA, screen, recorder)
     scene = rba.scene
     on(events(scene).mousebutton) do event
         # if scene.events.hasfocus[]
@@ -14,7 +14,7 @@ function register_events(rba::RBA)
         #     rba.simparams.fps = 15
         # end
     end
-    on(events(scene).keyboardbutton, priority = 20) do event
+    on(events(scene).keyboardbutton, priority = 20000000) do event
         if ispressed(scene, Makie.Keyboard.r)
             reset_time(rba)
             return Consume()
@@ -33,7 +33,7 @@ function register_events(rba::RBA)
             rba.simparams.frame_idx += 200
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.a)
+        if ispressed(scene, Makie.Keyboard.o)
             toggle_rotation(rba)
             return Consume()
         end
@@ -117,8 +117,23 @@ function register_events(rba::RBA)
             next_hits_colouring(rba)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.s)
-            rba.simparams.save_next_frame = true
+        if ispressed(scene, Makie.Keyboard.p)
+            fname = "RBA_$(lpad(rba.simparams.screenshot_counter, 3, '0')).png"
+            @async save(fname, scene)
+            println("Screenshot saved as $(fname)")
+            rba.simparams.screenshot_counter += 1
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.v)
+            if recorder.recording[]
+                println("Recording stopped...")
+                stop!(recorder)
+            else
+                println("Recording started...")
+                fname = "RBA_$(lpad(rba.simparams.recording_counter, 3, '0')).mp4"
+                start!(recorder; outfname=fname)
+                rba.simparams.recording_counter += 1
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.x)
@@ -129,11 +144,7 @@ function register_events(rba::RBA)
             toggle_loop(rba)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.l)
-            toggle_loop(rba)
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.d)
+        if ispressed(scene, Makie.Keyboard.b)
             if rba.simparams.darkmode_enabled
                 scene.backgroundcolor = RGBf(0.9, 0.9, 0.9)
                 rba.infobox.color = RGBf(0.1, 0.1, 0.1)
@@ -161,18 +172,14 @@ function register_events(rba::RBA)
             increasetot(rba, 0.5)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.i)
+        if ispressed(scene, Makie.Keyboard.h & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
             rba.simparams.hit_scaling += 1
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.u)
+        if ispressed(scene, Makie.Keyboard.h)
             if rba.simparams.hit_scaling > 1
                 rba.simparams.hit_scaling -= 1
             end
-            return Consume()
-        end
-        if ispressed(scene, Makie.Keyboard.q)
-            rba.simparams.quit = true
             return Consume()
         end
     end

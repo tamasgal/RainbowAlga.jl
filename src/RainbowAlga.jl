@@ -10,6 +10,8 @@ using GLMakie
 using GeometryBasics
 using GLFW
 using Corpuscles
+using Colors
+using Colors: N0f8
 using ColorSchemes
 
 export update!, clearhits!, setfps!, add!, recolor!, describe!
@@ -19,6 +21,7 @@ export select_first_hits, select_cherenkov_hits
 export positionof
 
 include("params.jl")
+include("recording.jl")
 include("core.jl")
 include("interactivity.jl")
 include("runtime.jl")

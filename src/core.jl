@@ -120,7 +120,6 @@ function RBA(detector::Detector; kwargs...)
     rba = RBA(kwargs...)
 
     update!(rba, detector)
-    register_events(rba)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
 
@@ -272,7 +271,7 @@ function generate_hit_positions(hits; pmt_distance=5, hit_distance=2)
 end
 
 
-function update!(rba::RBA, det::Detector; simplified_doms=false, dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
+function update!(rba::RBA, det::Detector; simplified_doms=true, dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
     scene = rba.scene
     det_center = center(det)
     rba.center = det_center
@@ -365,18 +364,11 @@ end
 
 function run(rba::RBA; interactive=true)
     println("Registering events")
-    register_events(rba)
     println("Centering scene")
     center!(rba.scene)
     println("Updating camera")
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
-    if interactive
-        println("Starting interactive event loop thread")
-        Threads.@spawn :interactive start_eventloop(rba)
-    else
-        println("Starting non-interactive event loop")
-        start_eventloop(rba)
-    end
+    start_eventloop(rba; interactive=interactive)
     nothing
 end
 run(;interactive=true) = run(global_rba(); interactive=interactive)
@@ -470,9 +462,9 @@ function update_infotext!(rba)
     rba.infobox.text = join(lines, "\n")
 end
 
-function start_eventloop(rba)
+function start_eventloop(rba; interactive=true)
     println("Creating screen")
-    screen = display(GLMakie.Screen(start_renderloop=true, focus_on_show=true, title="RainbowAlga"), rba.scene)
+    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
     glw = screen.glscreen
     println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
@@ -485,12 +477,22 @@ function start_eventloop(rba)
     # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
     # plot!(subwindow, [1, 2, 3], rand(3))
 
-    on(screen.render_tick) do tick
-        # if rba.simparams.quit
-        #     rba.simparams.quit = false
-        #     break
-        # end
+    counters = get_capture_counters()
+    rba.simparams.screenshot_counter = counters.screenshot + 1
+    rba.simparams.recording_counter = counters.recording + 1
 
+    recorder = VideoRecorder(; 
+        framerate=24,
+        preset="ultrafast",  # Can also try "veryfast" or "faster" for better quality
+        crf=28,  # Higher = lower quality but faster encoding (23 is default, 28 is faster)
+        pixel_format="yuv420p"
+    )
+
+    register_events(rba, screen, recorder)
+
+    recording_task = @async fps_renderloop(screen, recorder)
+
+    on(screen.render_tick) do tick
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
         end
@@ -516,7 +518,36 @@ function start_eventloop(rba)
             rba.simparams.frame_idx += rba.simparams.speed
         end
     end
-    wait(screen)
-
-    GLMakie.destroy!(screen)
+    if !interactive
+        wait(screen)
+        wait(recording_task)
+    end
 end
+
+
+"""
+Return the current recording counters for screenshots and videos.
+"""
+function get_capture_counters()
+    files = readdir()
+
+    function extract_counter(path)
+        m = match(r"RBA_(\d+)\.(mp4|png)", path)
+        return m === nothing ? nothing : (parse(Int, m.captures[1]), m.captures[2])
+    end
+
+    counters = filter(!isnothing, extract_counter.(files))
+    mp4_counters = [0]
+    png_counters = [0]
+
+    for (counter, ext) in counters
+        if ext == "mp4"
+            push!(mp4_counters, counter)
+        elseif ext == "png"
+            push!(png_counters, counter)
+        end
+    end
+
+    (screenshot=maximum(png_counters), recording=maximum(mp4_counters))
+end
+

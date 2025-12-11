@@ -172,11 +172,11 @@ function register_events(rba::RBA, screen, recorder)
             increasetot(rba, 0.5)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.i)
+        if ispressed(scene, Makie.Keyboard.h & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
             rba.simparams.hit_scaling += 1
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.u)
+        if ispressed(scene, Makie.Keyboard.h)
             if rba.simparams.hit_scaling > 1
                 rba.simparams.hit_scaling -= 1
             end

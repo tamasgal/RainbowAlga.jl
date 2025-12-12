@@ -129,6 +129,10 @@ function register_events(rba::RBA, screen, recorder)
                 println("Recording stopped...")
                 stop!(recorder)
             else
+                if Threads.nthreads() < 2
+                    @warn "Cannot record with only one thread, please restart the Julia process with at least two threads (\"julia -t 2\")"
+                    return Consume()
+                end
                 println("Recording started...")
                 fname = "RBA_$(lpad(rba.simparams.recording_counter, 3, '0')).mp4"
                 start!(recorder; outfname=fname)

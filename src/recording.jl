@@ -143,3 +143,17 @@ function fps_renderloop(screen::GLMakie.Screen, recorder)
     GLMakie.destroy!(screen)
     return nothing
 end
+
+
+mutable struct ScreenCapturer
+    frames::Union{Nothing, Channel{Matrix{ColorTypes.RGB{N0f8}}}}
+    task::Union{Nothing, Task}
+    frame_count::Ref{Int}  # Track frames for debugging
+end
+
+ScreenCapturer(frame_count::Int) = ScreenCapturer(nothing, nothing, Ref(frame_count))
+
+function capture!(s::ScreenCapturer)
+    fname = "RBA_$(lpad(s.frame_count[], 3, '0')).png"
+
+end

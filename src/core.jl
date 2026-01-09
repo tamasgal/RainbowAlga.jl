@@ -113,8 +113,9 @@ end
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
     _plots::Dict{String, Any} = Dict()
+    eventfile::Union{Nothing, AbstractEventFile} = nothing
 end
-Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
+Base.show(io::IO, ::RBA) = print(io, "RainbowAlga event display.")
 
 function RBA(detector::Detector; kwargs...)
     rba = RBA(kwargs...)
@@ -228,6 +229,7 @@ function Base.empty!(rba::RBA)
         delete!(rba.scene, track._lines)
     end
     empty!(rba.tracks)
+    clearhits!(rba)
     empty!(rba.hits)
     for hits_mesh in rba.hits_meshes
         delete!(rba.scene, hits_mesh)
@@ -492,6 +494,8 @@ function start_eventloop(rba; interactive=true)
 
     recording_task = @async fps_renderloop(screen, recorder)
 
+    println("Framerate: $(screen.config.framerate) FPS")
+    Makie.reset!(screen.timer, 1.0 / screen.config.framerate)
     on(screen.render_tick) do tick
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
@@ -517,6 +521,8 @@ function start_eventloop(rba; interactive=true)
         if !isstopped(rba)
             rba.simparams.frame_idx += rba.simparams.speed
         end
+
+        sleep(screen.timer)
     end
     if !interactive
         wait(screen)

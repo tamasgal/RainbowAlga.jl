@@ -111,7 +111,7 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>.</kbd>      | Increase ToT cut          |
 | <kbd></kbd><kbd>h</kbd>  | Decrease hit scaling |
 | <kbd>Shift</kbd><kbd>h</kbd>  | Increase hit scaling |
-| <kbd>R</kbd>      | Reset time to 0           |
+| <kbd>0</kbd>      | Reset time to 0           |
 | <kbd>O</kbd>      | Toggle auto-rotation      |
 | <kbd>L</kbd>      | Toggle loop               |
 | <kbd>B</kbd>      | Toggle dark mode          |

@@ -15,7 +15,7 @@ function register_events(rba::RBA, screen, recorder)
         # end
     end
     on(events(scene).keyboardbutton, priority = 20000000) do event
-        if ispressed(scene, Makie.Keyboard.r)
+        if ispressed(scene, Makie.Keyboard._0)
             reset_time(rba)
             return Consume()
         end

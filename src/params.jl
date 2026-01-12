@@ -4,11 +4,10 @@ Base.@kwdef mutable struct DisplayParams
 end
 
 const displayparams = let m = GLFW.GetVideoMode(GLFW.GetPrimaryMonitor())
-    width = Int(round(m.width * 0.6))
-    height = Int(round(m.height * 0.6))
+    width = Int(round(m.width * 0.8))
+    height = Int(round(m.height * 0.8))
     DisplayParams(
-        # pos = (Int(round(m.width - width / 2)), Int(round(m.height - height / 2))),
-        pos = (100, 100),
+        pos = (Int(round((m.width - width)/2)), Int(round((m.height - height)/2))),
         size = (width, height)
     )
 end

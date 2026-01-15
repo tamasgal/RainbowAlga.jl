@@ -89,14 +89,24 @@ end
 Container for hits including the mesh scatter and a description.
 
 """
-mutable struct HitsCloud
-    hits::Vector{Hit}
-    positions::Observable{Vector{GeometryBasics.Point{3, Float32}}}
-    mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}
+mutable struct HitsCloud{T}
+    hits::Vector{T}  # for reference
+    positions::Vector{Point3f}
+    colors::Vector{RGBAf}
+    sizes::Vector{Float64}
+    alpha::Float64
     description::String
 end
 function Base.show(io::IO, h::HitsCloud)
     print(io, "HitsCloud '$(h.description)' ($(length(h.hits)) hits)")
+end
+display(hitscloud::HitsCloud) = display(global_rba(), hitscloud)
+function display(rba::RBA, hitscloud::HitsCloud)
+    hm = rba.hits_mesh
+    hm.positions[] = hitscloud.positions
+    hm.color[] = hitscloud.colors
+    hm.markersize[] = hitscloud.sizes
+    hm.alpha = hitscloud.alpha
 end
 
 
@@ -109,9 +119,8 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
-    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
-    hits_mesh_descriptions::Vector{String} = []
+    # meshscatter needs a vector of color(s) and markersize(s) otherwise they will be scalar
+    hits_mesh::MeshScatter{Tuple{Vector{Point{3, Float32}}}} = meshscatter!(scene, Point3f[], color = RGBAf[], markersize = Float64[])
     _plots::Dict{String, Any} = Dict()
     eventfile::Union{Nothing, AbstractEventFile} = nothing
 end
@@ -153,6 +162,15 @@ function load_perspective(rba::RBA, idx::Int)
 end
 load_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 
+"""
+    Default hit size. Extend with new methods for different hit size calculations.
+"""
+hitsize(hit) = 1.0
+hitsize(hit::T) where T<:Union{KM3io.CalibratedHit, KM3io.XCalibratedHit, KM3io.CalibratedMCHit} = sqrt(hit.tot / 255.0)
+"""
+    Getter for the actual hit time.
+"""
+timeof(hit) = hit.t
 
 """
 
@@ -161,7 +179,7 @@ Adds hits to the scene.
 """
 function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
 
-    positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
+    positions = generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 
     if length(triggered(hits)) == 0
         t_min, t_max = extrema(h.t for h ∈ hits)
@@ -172,27 +190,29 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     rba.simparams.t_offset = t_min
     rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
+    n_hits = length(hits)
+
     cmap = getproperty(ColorSchemes, colorscheme)
-    hits_mesh = meshscatter!(
-        rba.scene,
-        positions,
-        color = [cmap[(h.t - rba.simparams.t_offset) / Δt] for h ∈ hits],
-        markersize = [0 for _ ∈ hits],
-        alpha = 0.9,
-    )
-    rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
-    push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
+    colors = [RGBAf(cmap[(h.t - rba.simparams.t_offset) / Δt]) for h ∈ hits]
+    sizes = [hitsize(hit) for hit in hits]
+    alpha = 0.9
+    hitscloud = HitsCloud(hits, positions, colors, sizes, alpha, string(colorscheme))
+    push!(rba.hitsclouds, hitscloud)
+    display(hitscloud)
+
+    rba
 end
-function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
-    add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+function add!(hits::T; kwargs...) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
+    add!(global_rba(), hits; kwargs...)
 end
+
 function clearhits!(rba::RBA)
-    for hitscloud in rba.hitsclouds
-        hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
-    end
+    rba.simparams.hits_selector = 0
+    rba.hits_mesh.positions[] = []  # only clearing the positions for performance
     empty!(rba.hitsclouds)
 end
 clearhits!() = clearhits!(global_rba())
+
 function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     if hitscloud_idx < 1 || hitscloud_idx > length(rba.hitsclouds)
         error("No hits cloud with index $(hitscloud_idx) found. There is a total of $(length(rba.hitsclouds)) hits clouds to choose from.")
@@ -230,12 +250,6 @@ function Base.empty!(rba::RBA)
     end
     empty!(rba.tracks)
     clearhits!(rba)
-    empty!(rba.hits)
-    for hits_mesh in rba.hits_meshes
-        delete!(rba.scene, hits_mesh)
-    end
-    empty!(rba.hits_meshes)
-    empty!(rba.hits_mesh_descriptions)
 
     # TODO: this is need to get rid of everything, otherwise "plots" still contains hundreds of elements
     # Not sure why...
@@ -508,8 +522,8 @@ function start_eventloop(rba; interactive=true)
         for (idx, hitscloud) in enumerate(rba.hitsclouds)
             isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
             !isselected && continue
-            hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
-            hitscloud.mesh.markersize = hit_sizes
+            hit_sizes = [t < timeof(hit) ? (1+(rba.simparams.hit_scaling/5)) * hitscloud.sizes[idx] : 0.0 for (idx, hit) in enumerate(hitscloud.hits)]
+            rba.hits_mesh.markersize[] = hit_sizes
         end
 
         for track ∈ rba.tracks

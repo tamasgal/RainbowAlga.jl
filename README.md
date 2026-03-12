@@ -142,6 +142,7 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>N</kbd>      | Next event                |
 | <kbd>Shift</kbd><kbd>N</kbd> | Previous event |
 | <kbd>E</kbd>      | Jump to event by index (type digits + Enter, any other key cancels) |
+| <kbd>F</kbd>      | Jump to event by frame index + trigger counter (type frame index, Enter, type trigger counter, Enter; any other key cancels) |
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

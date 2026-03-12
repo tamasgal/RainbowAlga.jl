@@ -30,5 +30,8 @@ Base.@kwdef mutable struct SimParams
     fps::Int = 24  # framews per second
     event_input_mode::Bool = false
     event_input_buffer::String = ""
+    frame_tc_input_stage::Int = 0  # 0 = off, 1 = entering frame_index, 2 = entering trigger_counter
+    frame_index_buffer::String = ""
+    trigger_counter_buffer::String = ""
 end
 

@@ -55,6 +55,74 @@ function register_events(rba::RBA, screen, recorder)
             return Consume()
         end
 
+        # Modal frame_index / trigger_counter input (activated by F key)
+        if rba.simparams.frame_tc_input_stage > 0
+            event.action == Keyboard.release && return Consume()
+            digit_keys = (
+                (Makie.Keyboard._0, "0"), (Makie.Keyboard._1, "1"),
+                (Makie.Keyboard._2, "2"), (Makie.Keyboard._3, "3"),
+                (Makie.Keyboard._4, "4"), (Makie.Keyboard._5, "5"),
+                (Makie.Keyboard._6, "6"), (Makie.Keyboard._7, "7"),
+                (Makie.Keyboard._8, "8"), (Makie.Keyboard._9, "9"),
+            )
+            active_buf = rba.simparams.frame_tc_input_stage == 1 ? :frame_index_buffer : :trigger_counter_buffer
+            for (key, digit) in digit_keys
+                if ispressed(scene, key)
+                    setproperty!(rba.simparams, active_buf, getproperty(rba.simparams, active_buf) * digit)
+                    return Consume()
+                end
+            end
+            if ispressed(scene, Makie.Keyboard.backspace)
+                buf = getproperty(rba.simparams, active_buf)
+                if !isempty(buf)
+                    setproperty!(rba.simparams, active_buf, buf[1:end-1])
+                end
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.enter)
+                if rba.simparams.frame_tc_input_stage == 1
+                    if !isempty(rba.simparams.frame_index_buffer)
+                        rba.simparams.frame_tc_input_stage = 2
+                    else
+                        rba.simparams.frame_tc_input_stage = 0
+                    end
+                else
+                    if !isempty(rba.simparams.frame_index_buffer) && !isempty(rba.simparams.trigger_counter_buffer)
+                        fi = parse(Int, rba.simparams.frame_index_buffer)
+                        tc = parse(Int, rba.simparams.trigger_counter_buffer)
+                        rba.simparams.frame_tc_input_stage = 0
+                        rba.simparams.frame_index_buffer = ""
+                        rba.simparams.trigger_counter_buffer = ""
+                        event_obj = getevent(rba.event_file.online, fi, tc)
+                        rba.current_event_idx = 0
+                        rba.current_frame_index = fi
+                        rba.current_trigger_counter = tc
+                        chits = calibrate(rba.event_detector, event_obj.snapshot_hits)
+                        t_range = if !isempty(event_obj.triggered_hits)
+                            tchits = calibrate(rba.event_detector, event_obj.triggered_hits)
+                            extrema(h.t for h ∈ tchits)
+                        else
+                            nothing
+                        end
+                        clearhits!(rba)
+                        add!(rba, chits; t_range=t_range)
+                        reset_time(rba)
+                        println("Loaded event with frame_index=$fi, trigger_counter=$tc")
+                    else
+                        rba.simparams.frame_tc_input_stage = 0
+                        rba.simparams.frame_index_buffer = ""
+                        rba.simparams.trigger_counter_buffer = ""
+                    end
+                end
+                return Consume()
+            end
+            # Any other key cancels
+            rba.simparams.frame_tc_input_stage = 0
+            rba.simparams.frame_index_buffer = ""
+            rba.simparams.trigger_counter_buffer = ""
+            return Consume()
+        end
+
         if ispressed(scene, Makie.Keyboard._0)
             reset_time(rba)
             return Consume()
@@ -238,6 +306,12 @@ function register_events(rba::RBA, screen, recorder)
             if ispressed(scene, Makie.Keyboard.e)
                 rba.simparams.event_input_mode = true
                 rba.simparams.event_input_buffer = ""
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.f)
+                rba.simparams.frame_tc_input_stage = 1
+                rba.simparams.frame_index_buffer = ""
+                rba.simparams.trigger_counter_buffer = ""
                 return Consume()
             end
         end

@@ -103,6 +103,7 @@ end
 @kwdef mutable struct RBA
     scene::Scene = Scene(backgroundcolor=RGBf(1.0))
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat,
+        down_key          = Keyboard.unknown,  # conflicts with F (frame/TC jump)
         zoom_out_key      = Keyboard.unknown,  # conflicts with O (auto-rotate)
         increase_fov_key  = Keyboard.unknown,  # conflicts with B (dark mode)
         decrease_fov_key  = Keyboard.unknown,  # conflicts with N (next event)
@@ -123,6 +124,8 @@ end
     event_file::Union{Nothing, KM3io.ROOTFile} = nothing
     event_detector::Union{Nothing, Detector} = nothing
     current_event_idx::Int = 0
+    current_frame_index::Int = 0
+    current_trigger_counter::Int = 0
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
@@ -386,6 +389,8 @@ function load_event!(rba::RBA, idx::Int)
     rba.current_event_idx = idx
     clearhits!(rba)
     event = getevent(rba.event_file.online, idx)
+    rba.current_frame_index = event.header.frame_index
+    rba.current_trigger_counter = event.header.trigger_counter
     chits = calibrate(rba.event_detector, event.snapshot_hits)
     t_range = if !isempty(event.triggered_hits)
         tchits = calibrate(rba.event_detector, event.triggered_hits)
@@ -518,10 +523,16 @@ function update_infotext!(rba)
 
     if !isnothing(rba.event_file)
         nevents = length(rba.event_file.online.events)
-        push!(lines, "Event: $(rba.current_event_idx) / $nevents  [N/Shift+N: next/prev, E: jump to #]")
+        idx_str = rba.current_event_idx > 0 ? "Event: $(rba.current_event_idx) / $nevents  " : ""
+        push!(lines, "$(idx_str)frame=$(rba.current_frame_index)  TC=$(rba.current_trigger_counter)  [N/Shift+N: next/prev, E: #, F: frame/TC]")
     end
     if rba.simparams.event_input_mode
         push!(lines, "Jump to event #: $(rba.simparams.event_input_buffer)_  (ENTER confirms, any other key cancels)")
+    end
+    if rba.simparams.frame_tc_input_stage == 1
+        push!(lines, "Jump to frame index: $(rba.simparams.frame_index_buffer)_  TC: ?  (ENTER for TC, any other key cancels)")
+    elseif rba.simparams.frame_tc_input_stage == 2
+        push!(lines, "Jump to frame index: $(rba.simparams.frame_index_buffer)  TC: $(rba.simparams.trigger_counter_buffer)_  (ENTER loads, any other key cancels)")
     end
 
     rba.infobox.text = join(lines, "\n")

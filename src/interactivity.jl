@@ -15,6 +15,46 @@ function register_events(rba::RBA, screen, recorder)
         # end
     end
     on(events(scene).keyboardbutton, priority = 20000000) do event
+        # Modal event-index input (activated by E key)
+        if rba.simparams.event_input_mode
+            # Ignore release events to avoid spurious cancellation
+            event.action == Keyboard.release && return Consume()
+            digit_keys = (
+                (Makie.Keyboard._0, "0"), (Makie.Keyboard._1, "1"),
+                (Makie.Keyboard._2, "2"), (Makie.Keyboard._3, "3"),
+                (Makie.Keyboard._4, "4"), (Makie.Keyboard._5, "5"),
+                (Makie.Keyboard._6, "6"), (Makie.Keyboard._7, "7"),
+                (Makie.Keyboard._8, "8"), (Makie.Keyboard._9, "9"),
+            )
+            for (key, digit) in digit_keys
+                if ispressed(scene, key)
+                    rba.simparams.event_input_buffer *= digit
+                    return Consume()
+                end
+            end
+            if ispressed(scene, Makie.Keyboard.backspace)
+                if !isempty(rba.simparams.event_input_buffer)
+                    rba.simparams.event_input_buffer = rba.simparams.event_input_buffer[1:end-1]
+                end
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.enter)
+                if !isempty(rba.simparams.event_input_buffer)
+                    idx = parse(Int, rba.simparams.event_input_buffer)
+                    rba.simparams.event_input_mode = false
+                    rba.simparams.event_input_buffer = ""
+                    load_event!(rba, idx)
+                else
+                    rba.simparams.event_input_mode = false
+                end
+                return Consume()
+            end
+            # Any other key cancels input mode
+            rba.simparams.event_input_mode = false
+            rba.simparams.event_input_buffer = ""
+            return Consume()
+        end
+
         if ispressed(scene, Makie.Keyboard._0)
             reset_time(rba)
             return Consume()
@@ -185,6 +225,21 @@ function register_events(rba::RBA, screen, recorder)
                 rba.simparams.hit_scaling -= 1
             end
             return Consume()
+        end
+        if !isnothing(rba.event_file)
+            if ispressed(scene, Makie.Keyboard.n & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+                previous_event!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.n)
+                next_event!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.e)
+                rba.simparams.event_input_mode = true
+                rba.simparams.event_input_buffer = ""
+                return Consume()
+            end
         end
     end
 end

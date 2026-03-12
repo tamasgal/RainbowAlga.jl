@@ -28,9 +28,29 @@ julia> import Pkg; Pkg.add("RainbowAlga")
     
 ## Quickstart
 
-RainbowAlga has a global scene object which can be manipulated using several
-functions. `RainbowAlga.run()` can be called to display the scene at any time,
-usually right after loading the package.
+### Skimming through online events
+
+The easiest way to browse events from an online (DAQ) ROOT file is to pass the
+file and detector directly to `RainbowAlga.run()`. The first event is loaded
+automatically and the hits are coloured using the time range of the triggered
+hits. Use <kbd>N</kbd> / <kbd>Shift</kbd><kbd>N</kbd> to step through events or
+<kbd>E</kbd> to jump to a specific event index.
+
+```julia
+julia> using RainbowAlga, KM3io, KM3DB
+
+julia> f = ROOTFile("KM3NeT_00000265_00026302.root")
+
+julia> detector = Detector(265)
+
+julia> RainbowAlga.run(f, detector)
+```
+
+### Manual scene control
+
+RainbowAlga also exposes a global scene object that can be manipulated
+directly. `RainbowAlga.run()` displays the scene at any time, usually right
+after loading the package.
 
 ``` julia
 julia> using RainbowAlga, KM3io, KM3NeTTestData
@@ -77,8 +97,6 @@ RainbowAlga.HitsCloud[]
 julia> hits = f.offline[2].hits;  # another event's hits...
 
 julia> add!(hits)
-
-julia> add!(hits)
 1-element Vector{RainbowAlga.HitsCloud}:
  HitsCloud 'hawaii' (530 hits)
  ```
@@ -121,6 +139,9 @@ You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time
 | <kbd>1</kbd> - <kbd>9</kbd>      | Load perspective |
 | <kbd>Shift</kbd><kbd>1</kbd> - <kbd>9</kbd>      | Save perspective |
 | <kbd>Space</kbd>  | Play/Pause                |
+| <kbd>N</kbd>      | Next event                |
+| <kbd>Shift</kbd><kbd>N</kbd> | Previous event |
+| <kbd>E</kbd>      | Jump to event by index (type digits + Enter, any other key cancels) |
 
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)

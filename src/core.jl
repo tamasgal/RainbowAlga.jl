@@ -102,7 +102,14 @@ end
 
 @kwdef mutable struct RBA
     scene::Scene = Scene(backgroundcolor=RGBf(1.0))
-    cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat)
+    cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat,
+        zoom_out_key      = Keyboard.unknown,  # conflicts with O (auto-rotate)
+        increase_fov_key  = Keyboard.unknown,  # conflicts with B (dark mode)
+        decrease_fov_key  = Keyboard.unknown,  # conflicts with N (next event)
+        pan_right_key     = Keyboard.unknown,  # conflicts with L (loop)
+        roll_clockwise_key = Keyboard.unknown, # conflicts with E (event jump)
+        fix_x_key         = Keyboard.unknown,  # conflicts with X (infobox)
+    )
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
@@ -113,6 +120,9 @@ end
     hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
     _plots::Dict{String, Any} = Dict()
+    event_file::Union{Nothing, KM3io.ROOTFile} = nothing
+    event_detector::Union{Nothing, Detector} = nothing
+    current_event_idx::Int = 0
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
@@ -158,14 +168,16 @@ load_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
 Adds hits to the scene.
 
 """
-function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
+function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii, t_range=nothing) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
 
     positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
 
-    if length(triggered(hits)) == 0
-        t_min, t_max = extrema(h.t for h ∈ hits)
-    else
+    if !isnothing(t_range)
+        t_min, t_max = t_range
+    elseif length(triggered(hits)) > 0
         t_min, t_max = extrema(h.t for h ∈ triggered(hits))
+    else
+        t_min, t_max = extrema(h.t for h ∈ hits)
     end
     Δt = t_max - t_min
     rba.simparams.t_offset = t_min
@@ -175,7 +187,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     hits_mesh = meshscatter!(
         rba.scene,
         positions,
-        color = [cmap[(h.t - rba.simparams.t_offset) / Δt] for h ∈ hits],
+        color = [cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)] for h ∈ hits],
         markersize = [0 for _ ∈ hits],
         alpha = 0.9,
     )
@@ -362,6 +374,38 @@ function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewi
     scene
 end
 
+"""
+Load the event at sequential index `idx` from the attached ROOTFile, calibrate its
+snapshot hits, and replace the current hit display.
+"""
+function load_event!(rba::RBA, idx::Int)
+    isnothing(rba.event_file) && return
+    isnothing(rba.event_detector) && return
+    nevents = length(rba.event_file.online.events)
+    idx = clamp(idx, 1, nevents)
+    rba.current_event_idx = idx
+    clearhits!(rba)
+    event = getevent(rba.event_file.online, idx)
+    chits = calibrate(rba.event_detector, event.snapshot_hits)
+    t_range = if !isempty(event.triggered_hits)
+        tchits = calibrate(rba.event_detector, event.triggered_hits)
+        extrema(h.t for h ∈ tchits)
+    else
+        nothing
+    end
+    add!(rba, chits; t_range=t_range)
+    reset_time(rba)
+    println("Event $idx / $nevents loaded")
+    nothing
+end
+load_event!(idx::Int) = load_event!(global_rba(), idx)
+
+next_event!(rba::RBA) = load_event!(rba, rba.current_event_idx + 1)
+next_event!() = next_event!(global_rba())
+
+previous_event!(rba::RBA) = load_event!(rba, rba.current_event_idx - 1)
+previous_event!() = previous_event!(global_rba())
+
 function run(rba::RBA; interactive=true)
     println("Registering events")
     println("Centering scene")
@@ -372,6 +416,19 @@ function run(rba::RBA; interactive=true)
     nothing
 end
 run(;interactive=true) = run(global_rba(); interactive=interactive)
+
+"""
+Start RainbowAlga with a `ROOTFile` and a calibrated `Detector`.  The first event is
+loaded immediately; N / Shift+N navigate forward/backward and E lets you jump by index.
+"""
+function run(rootfile::KM3io.ROOTFile, detector::Detector; interactive=true)
+    rba = global_rba()
+    update!(rba, detector)
+    rba.event_file = rootfile
+    rba.event_detector = detector
+    load_event!(rba, 1)
+    run(rba; interactive=interactive)
+end
 
 """
 Run the RainbowAlga GUI and display the specified event.
@@ -447,8 +504,8 @@ function update_infotext!(rba)
     end
     lines = String[]
     push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
-    push!(lines, @sprintf "time offset = %.0f ns" rba.simparams.t_offset)
-    push!(lines, @sprintf "ToT cut = %.1f ns" rba.simparams.min_tot)
+    push!(lines, @sprintf "time offset = %.0f ns  duration = %d ns" rba.simparams.t_offset rba.simparams.loop_end_frame_idx)
+    push!(lines, @sprintf "ToT cut = %.1f ns  speed = %d  hit scaling = %d" rba.simparams.min_tot rba.simparams.speed rba.simparams.hit_scaling)
     push!(lines, @sprintf "Position: x=%.1f y=%.1f z=%1.f" get_current_cam_position()...)
     push!(lines, @sprintf "Target: x=%.1f y=%.1f z=%1.f" get_current_cam_target()...)
 
@@ -457,6 +514,14 @@ function update_infotext!(rba)
     if length(rba.hitsclouds) > 0
         idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
         push!(lines, "Hits cloud #$(idx): $(rba.hitsclouds[idx].description)")
+    end
+
+    if !isnothing(rba.event_file)
+        nevents = length(rba.event_file.online.events)
+        push!(lines, "Event: $(rba.current_event_idx) / $nevents  [N/Shift+N: next/prev, E: jump to #]")
+    end
+    if rba.simparams.event_input_mode
+        push!(lines, "Jump to event #: $(rba.simparams.event_input_buffer)_  (ENTER confirms, any other key cancels)")
     end
 
     rba.infobox.text = join(lines, "\n")

@@ -4,8 +4,8 @@ Base.@kwdef mutable struct DisplayParams
 end
 
 const displayparams = let m = GLFW.GetVideoMode(GLFW.GetPrimaryMonitor())
-    width = Int(round(m.width * 0.8))
-    height = Int(round(m.height * 0.8))
+    width = Int(round(m.width * 0.6))
+    height = Int(round(m.height * 0.6))
     DisplayParams(
         pos = (Int(round((m.width - width)/2)), Int(round((m.height - height)/2))),
         size = (width, height)
@@ -28,5 +28,7 @@ Base.@kwdef mutable struct SimParams
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
     hit_scaling::Int = 5  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second
+    event_input_mode::Bool = false
+    event_input_buffer::String = ""
 end
 

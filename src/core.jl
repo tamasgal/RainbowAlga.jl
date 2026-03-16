@@ -399,6 +399,7 @@ function load_event!(rba::RBA, idx::Int)
         nothing
     end
     add!(rba, chits; t_range=t_range)
+    #add!(rba, filter(h->h.t > t_range[1], chits); t_range=t_range)
     reset_time(rba)
     println("Event $idx / $nevents loaded")
     nothing

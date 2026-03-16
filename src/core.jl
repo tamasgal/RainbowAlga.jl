@@ -126,6 +126,7 @@ end
     current_event_idx::Int = 0
     current_frame_index::Int = 0
     current_trigger_counter::Int = 0
+    _colorbar::Dict{String, Any} = Dict{String, Any}()
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
@@ -196,6 +197,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     )
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
+    update_colorbar!(rba)
 end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
     add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
@@ -205,6 +207,7 @@ function clearhits!(rba::RBA)
         hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
     end
     empty!(rba.hitsclouds)
+    update_colorbar!(rba)
 end
 clearhits!() = clearhits!(global_rba())
 function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
@@ -539,6 +542,125 @@ function update_infotext!(rba)
     rba.infobox.text = join(lines, "\n")
 end
 
+"""
+Set up the colorbar overlay in pixel space. Called once during `start_eventloop`.
+"""
+function setup_colorbar!(rba::RBA)
+    scene = rba.scene
+    cpscene = campixel(scene)
+
+    n = 256
+    n_ticks_max = 25
+    win_w, win_h = displayparams.size
+    cb_w = 20
+    cb_h = round(Int, win_h * 0.55)
+    cb_x = win_w - 75
+    cb_y = (win_h - cb_h) ÷ 2
+
+    cbar_colors = Observable(fill(RGBAf(0, 0, 0, 0), 1, n))
+    cbar_ticks_text = Observable(fill("", n_ticks_max))
+    cbar_tick_positions = Observable(fill(Point2f(0, 0), n_ticks_max))
+    cbar_visible = Observable(false)
+
+    img_plot = image!(cpscene, cb_x .. cb_x + cb_w, cb_y .. cb_y + cb_h, cbar_colors;
+                      visible=cbar_visible, interpolate=true)
+
+    ticks_plot = text!(cpscene, cbar_tick_positions;
+                       text=cbar_ticks_text,
+                       fontsize=10,
+                       color=RGBf(0.2, 0.2, 0.2),
+                       visible=cbar_visible,
+                       align=(:left, :center))
+
+    title_plot = text!(cpscene, Point2f(cb_x + cb_w / 2, cb_y + cb_h + 15);
+                       text="Δt / ns",
+                       fontsize=11,
+                       color=RGBf(0.2, 0.2, 0.2),
+                       visible=cbar_visible,
+                       align=(:center, :bottom))
+
+    rba._colorbar["cpscene"] = cpscene
+    rba._colorbar["colors"] = cbar_colors
+    rba._colorbar["ticks_text"] = cbar_ticks_text
+    rba._colorbar["tick_positions"] = cbar_tick_positions
+    rba._colorbar["visible"] = cbar_visible
+    rba._colorbar["img_plot"] = img_plot
+    rba._colorbar["ticks_plot"] = ticks_plot
+    rba._colorbar["title_plot"] = title_plot
+    rba._colorbar["cb_x"] = cb_x
+    rba._colorbar["cb_w"] = cb_w
+    rba._colorbar["cb_y"] = cb_y
+    rba._colorbar["cb_h"] = cb_h
+
+    update_colorbar!(rba)
+    nothing
+end
+
+"""
+Update the colorbar to reflect the currently selected hits cloud.
+"""
+function update_colorbar!(rba::RBA)
+    isempty(rba._colorbar) && return
+
+    cbar_visible = rba._colorbar["visible"]
+    cbar_colors = rba._colorbar["colors"]
+    cbar_ticks_text = rba._colorbar["ticks_text"]
+    cbar_tick_positions = rba._colorbar["tick_positions"]
+    cb_x = rba._colorbar["cb_x"]
+    cb_w = rba._colorbar["cb_w"]
+    cb_y = rba._colorbar["cb_y"]
+    cb_h = rba._colorbar["cb_h"]
+
+    if isempty(rba.hitsclouds)
+        cbar_visible[] = false
+        return
+    end
+
+    n = size(cbar_colors[], 2)
+    n_ticks_max = length(cbar_ticks_text[])
+
+    idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
+    hitscloud = rba.hitsclouds[idx]
+
+    cmap = try
+        getproperty(ColorSchemes, Symbol(hitscloud.description))
+    catch
+        ColorSchemes.hawaii
+    end
+
+    Δt = Float64(rba.simparams.loop_end_frame_idx)
+
+    new_colors = Matrix{RGBAf}(undef, 1, n)
+    for i in 1:n
+        frac = (i - 1) / (n - 1)
+        c = cmap[frac]
+        new_colors[1, i] = RGBAf(c.r, c.g, c.b, 1.0)
+    end
+    cbar_colors[] = new_colors
+
+    tick_interval = if Δt > 2000
+        500.0
+    elseif Δt > 200
+        100.0
+    else
+        10.0
+    end
+    tick_values = collect(0.0:tick_interval:Δt)
+
+    tick_x = Float32(cb_x + cb_w + 5)
+    new_positions = fill(Point2f(0, 0), n_ticks_max)
+    new_texts = fill("", n_ticks_max)
+    for (j, tv) in enumerate(tick_values)
+        new_positions[j] = Point2f(tick_x, cb_y + tv / Δt * cb_h)
+        new_texts[j] = @sprintf("%.0f", tv)
+    end
+    cbar_tick_positions[] = new_positions
+    cbar_ticks_text[] = new_texts
+
+    cbar_visible[] = true
+    nothing
+end
+
 function start_eventloop(rba; interactive=true)
     println("Creating screen")
     screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
@@ -566,6 +688,7 @@ function start_eventloop(rba; interactive=true)
     )
 
     register_events(rba, screen, recorder)
+    setup_colorbar!(rba)
 
     recording_task = @async fps_renderloop(screen, recorder)
 

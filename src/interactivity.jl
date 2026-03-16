@@ -261,10 +261,18 @@ function register_events(rba::RBA, screen, recorder)
                 scene.backgroundcolor = RGBf(0.9, 0.9, 0.9)
                 rba.infobox.color = RGBf(0.1, 0.1, 0.1)
                 rba.simparams.darkmode_enabled = false
+                if haskey(rba._colorbar, "ticks_plot")
+                    rba._colorbar["ticks_plot"].color = RGBf(0.1, 0.1, 0.1)
+                    rba._colorbar["title_plot"].color = RGBf(0.1, 0.1, 0.1)
+                end
             else
                 scene.backgroundcolor = RGBf(0.0, 0.0, 0.1)
                 rba.simparams.darkmode_enabled = true
                 rba.infobox.color = RGBf(0.9, 0.9, 0.9)
+                if haskey(rba._colorbar, "ticks_plot")
+                    rba._colorbar["ticks_plot"].color = RGBf(0.9, 0.9, 0.9)
+                    rba._colorbar["title_plot"].color = RGBf(0.9, 0.9, 0.9)
+                end
             end
             return Consume()
         end
@@ -334,10 +342,12 @@ rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
 function next_hits_colouring(rba::RBA)
     hidehits!(rba)
     rba.simparams.hits_selector += 1
+    update_colorbar!(rba)
 end
 function previous_hits_colouring(rba::RBA)
     hidehits!(rba)
     rba.simparams.hits_selector -= 1
+    update_colorbar!(rba)
 end
 function hidehits!(rba::RBA)
     for hitscloud in rba.hitsclouds

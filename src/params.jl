@@ -16,8 +16,8 @@ Base.@kwdef mutable struct SimParams
     frame_idx::Int = 0
     t_offset::Float64 = 0.0
     stopped::Bool = false
-    speed::Int = 3
-    min_tot::Float64 = 26.0
+    speed::Int = 10
+    min_tot::Float64 = 0.0  # all hits
     loop_end_frame_idx::Int = 10000
     rotation_enabled::Bool = true
     loop_enabled::Bool = true
@@ -26,7 +26,7 @@ Base.@kwdef mutable struct SimParams
     screenshot_counter::Int = 0
     recording_counter::Int = 0
     hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
-    hit_scaling::Int = 5  # factor to multiply the size of the hits
+    hit_scaling::Int = 50  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second
     event_input_mode::Bool = false
     event_input_buffer::String = ""

@@ -197,11 +197,33 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     )
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
+    rba._colorbar["default_t_offset"] = rba.simparams.t_offset
+    rba._colorbar["default_loop_end_frame_idx"] = rba.simparams.loop_end_frame_idx
     update_colorbar!(rba)
 end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
     add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
+"""
+Recompute and apply hit colors for all clouds based on the current `t_offset` and
+`loop_end_frame_idx` in `SimParams`. Called after interactive colorbar adjustments.
+"""
+function recolor_hits_from_simparams!(rba::RBA)
+    isempty(rba.hitsclouds) && return
+    t_min = rba.simparams.t_offset
+    Δt = Float64(rba.simparams.loop_end_frame_idx)
+    iszero(Δt) && return
+    for hitscloud in rba.hitsclouds
+        cmap = try
+            getproperty(ColorSchemes, Symbol(hitscloud.description))
+        catch
+            ColorSchemes.hawaii
+        end
+        hitscloud.mesh.color = [cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)] for h in hitscloud.hits]
+    end
+    nothing
+end
+
 function clearhits!(rba::RBA)
     for hitscloud in rba.hitsclouds
         hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
@@ -600,7 +622,7 @@ end
 Update the colorbar to reflect the currently selected hits cloud.
 """
 function update_colorbar!(rba::RBA)
-    isempty(rba._colorbar) && return
+    haskey(rba._colorbar, "visible") || return
 
     cbar_visible = rba._colorbar["visible"]
     cbar_colors = rba._colorbar["colors"]
@@ -689,6 +711,7 @@ function start_eventloop(rba; interactive=true)
 
     register_events(rba, screen, recorder)
     setup_colorbar!(rba)
+    register_colorbar_events(rba)
 
     recording_task = @async fps_renderloop(screen, recorder)
 

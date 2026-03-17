@@ -326,6 +326,86 @@ function register_events(rba::RBA, screen, recorder)
     end
 end
 
+"""
+Register mouse interactions for the colorbar overlay.
+
+- Right-click + drag left/right on the colorbar: shrink/expand the time duration (Δt).
+- Right-click + drag up/down on the colorbar: shift the time offset forward/backward.
+"""
+function register_colorbar_events(rba::RBA)
+    isempty(rba._colorbar) && return
+    scene = rba.scene
+
+    cb_x = rba._colorbar["cb_x"]
+    cb_w = rba._colorbar["cb_w"]
+    cb_y = rba._colorbar["cb_y"]
+    cb_h = rba._colorbar["cb_h"]
+    win_h = displayparams.size[2]
+
+    dragging = Ref(false)
+    last_pos = Ref(Point2f(0, 0))
+    last_click_time = Ref(0.0)
+    double_click_threshold = 0.3  # seconds
+
+    on(events(scene).mousebutton, priority=100) do event
+        # events().mouseposition uses window coords: (0,0) top-left, y-down.
+        # Flip y to match campixel coords (0,0) bottom-left, y-up.
+        mpos = Point2f(events(scene).mouseposition[])
+        cp_y = win_h - mpos[2]
+        in_cb = cb_x <= mpos[1] <= cb_x + cb_w + 65 && cb_y <= cp_y <= cb_y + cb_h
+        if event.button == Mouse.right
+            if event.action == Mouse.press && in_cb
+                now = time()
+                if now - last_click_time[] < double_click_threshold
+                    # Double click: reset to defaults
+                    dragging[] = false
+                    last_click_time[] = 0.0
+                    if haskey(rba._colorbar, "default_t_offset")
+                        rba.simparams.t_offset = rba._colorbar["default_t_offset"]
+                        rba.simparams.loop_end_frame_idx = rba._colorbar["default_loop_end_frame_idx"]
+                        update_colorbar!(rba)
+                        recolor_hits_from_simparams!(rba)
+                    end
+                else
+                    last_click_time[] = now
+                    dragging[] = true
+                    last_pos[] = mpos
+                end
+                return Consume()
+            elseif event.action == Mouse.release && dragging[]
+                dragging[] = false
+                return Consume()
+            end
+        end
+    end
+
+    on(events(scene).mouseposition, priority=100) do raw_mpos
+        !dragging[] && return
+
+        mpos = Point2f(raw_mpos)
+        delta = mpos - last_pos[]
+        last_pos[] = mpos
+
+        Δt = Float64(rba.simparams.loop_end_frame_idx)
+
+        # Horizontal: right = expand window, left = shrink (proportional to current Δt)
+        if abs(delta[1]) > 0
+            rba.simparams.loop_end_frame_idx = max(50, round(Int, Δt + delta[1] * Δt / 100.0))
+        end
+
+        # Vertical: up (negative GLFW delta) = later in time, down = earlier
+        if abs(delta[2]) > 0
+            rba.simparams.t_offset -= delta[2] * Δt / cb_h
+        end
+
+        update_colorbar!(rba)
+        recolor_hits_from_simparams!(rba)
+        return Consume()
+    end
+
+    nothing
+end
+
 # Control functions to steer the 3D simulation
 isstopped(rba::RBA) = rba.simparams.stopped
 stop(rba::RBA) = rba.simparams.stopped = true

@@ -115,6 +115,24 @@ julia> update!(d; simplified_doms=true)
 Make sure not to overuse `add!(hits)`, since each hit cloud adds some overhead to the
 animation loop, even if not fully displayed.
 
+## Colour bar
+
+When hits are added to the scene, a colour bar appears on the right side of the
+window. It reflects the colour mapping of the currently selected hit cloud, with
+the bottom corresponding to 0 ns and the top to the full duration Δt since the
+time offset. Tick marks are placed at multiples of 10, 100 or 500 ns depending
+on the event duration.
+
+The colour bar is interactive via the **right mouse button**:
+
+| Gesture | Effect |
+|---------|--------|
+| Right-click + drag left / right | Shrink / expand the time window (Δt) |
+| Right-click + drag up / down | Shift the time offset forward / backward |
+| Double right-click | Reset both Δt and the time offset to their defaults |
+
+Both the colour bar ticks and the hit colours update live while dragging.
+
 ## Keybindings
 
 You can use <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> to go back and forth in time and <kbd>R</kbd> to reset the time.

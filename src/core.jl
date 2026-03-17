@@ -197,6 +197,8 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     )
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
     push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
+    rba._colorbar["default_t_offset"] = rba.simparams.t_offset
+    rba._colorbar["default_loop_end_frame_idx"] = rba.simparams.loop_end_frame_idx
     update_colorbar!(rba)
 end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
@@ -620,7 +622,7 @@ end
 Update the colorbar to reflect the currently selected hits cloud.
 """
 function update_colorbar!(rba::RBA)
-    isempty(rba._colorbar) && return
+    haskey(rba._colorbar, "visible") || return
 
     cbar_visible = rba._colorbar["visible"]
     cbar_colors = rba._colorbar["colors"]

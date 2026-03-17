@@ -344,6 +344,8 @@ function register_colorbar_events(rba::RBA)
 
     dragging = Ref(false)
     last_pos = Ref(Point2f(0, 0))
+    last_click_time = Ref(0.0)
+    double_click_threshold = 0.3  # seconds
 
     on(events(scene).mousebutton, priority=100) do event
         # events().mouseposition uses window coords: (0,0) top-left, y-down.
@@ -353,8 +355,22 @@ function register_colorbar_events(rba::RBA)
         in_cb = cb_x <= mpos[1] <= cb_x + cb_w + 65 && cb_y <= cp_y <= cb_y + cb_h
         if event.button == Mouse.right
             if event.action == Mouse.press && in_cb
-                dragging[] = true
-                last_pos[] = mpos
+                now = time()
+                if now - last_click_time[] < double_click_threshold
+                    # Double click: reset to defaults
+                    dragging[] = false
+                    last_click_time[] = 0.0
+                    if haskey(rba._colorbar, "default_t_offset")
+                        rba.simparams.t_offset = rba._colorbar["default_t_offset"]
+                        rba.simparams.loop_end_frame_idx = rba._colorbar["default_loop_end_frame_idx"]
+                        update_colorbar!(rba)
+                        recolor_hits_from_simparams!(rba)
+                    end
+                else
+                    last_click_time[] = now
+                    dragging[] = true
+                    last_pos[] = mpos
+                end
                 return Consume()
             elseif event.action == Mouse.release && dragging[]
                 dragging[] = false

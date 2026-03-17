@@ -573,18 +573,25 @@ function setup_colorbar!(rba::RBA)
 
     n = 256
     n_ticks_max = 25
-    win_w, win_h = displayparams.size
+    _, win_h_init = displayparams.size
     cb_w = 20
-    cb_h = round(Int, win_h * 0.55)
-    cb_x = win_w - 75
-    cb_y = (win_h - cb_h) ÷ 2
+    cb_h = round(Int, win_h_init * 0.55)
+    margin_right = 75
+
+    # Reactive position: always centred on the right edge regardless of window size
+    viewport = scene.viewport
+    cb_x_obs = @lift(width($viewport) - margin_right)
+    cb_y_obs = @lift((height($viewport) - cb_h) ÷ 2)
 
     cbar_colors = Observable(fill(RGBAf(0, 0, 0, 0), 1, n))
     cbar_ticks_text = Observable(fill("", n_ticks_max))
     cbar_tick_positions = Observable(fill(Point2f(0, 0), n_ticks_max))
     cbar_visible = Observable(false)
 
-    img_plot = image!(cpscene, cb_x .. cb_x + cb_w, cb_y .. cb_y + cb_h, cbar_colors;
+    x_range = @lift(Float32($cb_x_obs) .. Float32($cb_x_obs + cb_w))
+    y_range = @lift(Float32($cb_y_obs) .. Float32($cb_y_obs + cb_h))
+
+    img_plot = image!(cpscene, x_range, y_range, cbar_colors;
                       visible=cbar_visible, interpolate=true)
 
     ticks_plot = text!(cpscene, cbar_tick_positions;
@@ -594,7 +601,8 @@ function setup_colorbar!(rba::RBA)
                        visible=cbar_visible,
                        align=(:left, :center))
 
-    title_plot = text!(cpscene, Point2f(cb_x + cb_w / 2, cb_y + cb_h + 15);
+    title_pos = @lift Point2f($cb_x_obs + cb_w / 2, $cb_y_obs + cb_h + 15)
+    title_plot = text!(cpscene, title_pos;
                        text="Δt / ns",
                        fontsize=11,
                        color=RGBf(0.2, 0.2, 0.2),
@@ -609,10 +617,15 @@ function setup_colorbar!(rba::RBA)
     rba._colorbar["img_plot"] = img_plot
     rba._colorbar["ticks_plot"] = ticks_plot
     rba._colorbar["title_plot"] = title_plot
-    rba._colorbar["cb_x"] = cb_x
+    rba._colorbar["cb_x"] = cb_x_obs
     rba._colorbar["cb_w"] = cb_w
-    rba._colorbar["cb_y"] = cb_y
+    rba._colorbar["cb_y"] = cb_y_obs
     rba._colorbar["cb_h"] = cb_h
+
+    # Recompute tick label positions whenever the window is resized
+    on(viewport) do _
+        update_colorbar!(rba)
+    end
 
     update_colorbar!(rba)
     nothing
@@ -628,9 +641,9 @@ function update_colorbar!(rba::RBA)
     cbar_colors = rba._colorbar["colors"]
     cbar_ticks_text = rba._colorbar["ticks_text"]
     cbar_tick_positions = rba._colorbar["tick_positions"]
-    cb_x = rba._colorbar["cb_x"]
+    cb_x = rba._colorbar["cb_x"][]
     cb_w = rba._colorbar["cb_w"]
-    cb_y = rba._colorbar["cb_y"]
+    cb_y = rba._colorbar["cb_y"][]
     cb_h = rba._colorbar["cb_h"]
 
     if isempty(rba.hitsclouds)

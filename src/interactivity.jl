@@ -336,9 +336,9 @@ function register_colorbar_events(rba::RBA)
     isempty(rba._colorbar) && return
     scene = rba.scene
 
-    cb_x = rba._colorbar["cb_x"]
+    cb_x_obs = rba._colorbar["cb_x"]
     cb_w = rba._colorbar["cb_w"]
-    cb_y = rba._colorbar["cb_y"]
+    cb_y_obs = rba._colorbar["cb_y"]
     cb_h = rba._colorbar["cb_h"]
     win_h = displayparams.size[2]
 
@@ -352,6 +352,7 @@ function register_colorbar_events(rba::RBA)
         # Flip y to match campixel coords (0,0) bottom-left, y-up.
         mpos = Point2f(events(scene).mouseposition[])
         cp_y = win_h - mpos[2]
+        cb_x = cb_x_obs[]; cb_y = cb_y_obs[]
         in_cb = cb_x <= mpos[1] <= cb_x + cb_w + 65 && cb_y <= cp_y <= cb_y + cb_h
         if event.button == Mouse.right
             if event.action == Mouse.press && in_cb

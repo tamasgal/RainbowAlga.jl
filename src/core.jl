@@ -185,6 +185,7 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     end
     Δt = t_max - t_min
     rba.simparams.t_offset = t_min
+    rba.simparams.cb_t_offset = 0.0
     rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
     cmap = getproperty(ColorSchemes, colorscheme)
@@ -210,7 +211,7 @@ Recompute and apply hit colors for all clouds based on the current `t_offset` an
 """
 function recolor_hits_from_simparams!(rba::RBA)
     isempty(rba.hitsclouds) && return
-    t_min = rba.simparams.t_offset
+    t_min = rba.simparams.t_offset + rba.simparams.cb_t_offset
     Δt = Float64(rba.simparams.loop_end_frame_idx)
     iszero(Δt) && return
     for hitscloud in rba.hitsclouds
@@ -680,13 +681,17 @@ function update_colorbar!(rba::RBA)
     else
         10.0
     end
-    tick_values = collect(0.0:tick_interval:Δt)
+    # Tick labels are relative to the first hit (cb_t_offset can be negative)
+    t_rel_start = rba.simparams.cb_t_offset
+    first_tick = ceil(t_rel_start / tick_interval) * tick_interval
+    tick_values = collect(first_tick:tick_interval:t_rel_start + Δt)
 
     tick_x = Float32(cb_x + cb_w + 5)
     new_positions = fill(Point2f(0, 0), n_ticks_max)
     new_texts = fill("", n_ticks_max)
     for (j, tv) in enumerate(tick_values)
-        new_positions[j] = Point2f(tick_x, cb_y + tv / Δt * cb_h)
+        frac = (tv - t_rel_start) / Δt
+        new_positions[j] = Point2f(tick_x, cb_y + frac * cb_h)
         new_texts[j] = @sprintf("%.0f", tv)
     end
     cbar_tick_positions[] = new_positions

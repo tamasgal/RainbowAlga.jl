@@ -15,6 +15,7 @@ end
 Base.@kwdef mutable struct SimParams
     frame_idx::Int = 0
     t_offset::Float64 = 0.0
+    cb_t_offset::Float64 = 0.0  # colorbar display offset relative to t_offset (can be negative)
     stopped::Bool = false
     speed::Int = 10
     min_tot::Float64 = 0.0  # all hits

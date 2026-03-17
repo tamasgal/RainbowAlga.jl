@@ -361,8 +361,8 @@ function register_colorbar_events(rba::RBA)
                     # Double click: reset to defaults
                     dragging[] = false
                     last_click_time[] = 0.0
-                    if haskey(rba._colorbar, "default_t_offset")
-                        rba.simparams.t_offset = rba._colorbar["default_t_offset"]
+                    if haskey(rba._colorbar, "default_loop_end_frame_idx")
+                        rba.simparams.cb_t_offset = 0.0
                         rba.simparams.loop_end_frame_idx = rba._colorbar["default_loop_end_frame_idx"]
                         update_colorbar!(rba)
                         recolor_hits_from_simparams!(rba)
@@ -396,7 +396,7 @@ function register_colorbar_events(rba::RBA)
 
         # Vertical: up (negative GLFW delta) = later in time, down = earlier
         if abs(delta[2]) > 0
-            rba.simparams.t_offset -= delta[2] * Δt / cb_h
+            rba.simparams.cb_t_offset -= delta[2] * Δt / cb_h
         end
 
         update_colorbar!(rba)

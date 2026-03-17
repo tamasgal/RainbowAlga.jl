@@ -202,6 +202,26 @@ end
 function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
     add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 end
+"""
+Recompute and apply hit colors for all clouds based on the current `t_offset` and
+`loop_end_frame_idx` in `SimParams`. Called after interactive colorbar adjustments.
+"""
+function recolor_hits_from_simparams!(rba::RBA)
+    isempty(rba.hitsclouds) && return
+    t_min = rba.simparams.t_offset
+    Δt = Float64(rba.simparams.loop_end_frame_idx)
+    iszero(Δt) && return
+    for hitscloud in rba.hitsclouds
+        cmap = try
+            getproperty(ColorSchemes, Symbol(hitscloud.description))
+        catch
+            ColorSchemes.hawaii
+        end
+        hitscloud.mesh.color = [cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)] for h in hitscloud.hits]
+    end
+    nothing
+end
+
 function clearhits!(rba::RBA)
     for hitscloud in rba.hitsclouds
         hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
@@ -689,6 +709,7 @@ function start_eventloop(rba; interactive=true)
 
     register_events(rba, screen, recorder)
     setup_colorbar!(rba)
+    register_colorbar_events(rba)
 
     recording_task = @async fps_renderloop(screen, recorder)
 

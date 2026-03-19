@@ -1,18 +1,29 @@
 module RainbowAlga
 
+# Disable precompilation so the backend selection via RAINBOWALGA_BACKEND
+# environment variable is re-evaluated on every load.
+__precompile__(false)
+
 using Printf
 using LinearAlgebra
 
 using KM3io
 
 using Makie
-using GLMakie
 using GeometryBasics
-using GLFW
 using Corpuscles
 using Colors
 using Colors: N0f8
 using ColorSchemes
+
+const BACKEND = Symbol(get(ENV, "RAINBOWALGA_BACKEND", "glfw"))
+
+if BACKEND === :webgl
+    using WGLMakie
+else
+    using GLMakie
+    using GLFW
+end
 
 export update!, clearhits!, setfps!, add!, recolor!, describe!
 export generate_colors, save_perspective, load_perspective

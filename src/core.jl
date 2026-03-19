@@ -111,14 +111,14 @@ end
         roll_clockwise_key = Keyboard.unknown, # conflicts with E (event jump)
         fix_x_key         = Keyboard.unknown,  # conflicts with X (infobox)
     )
-    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
+    infobox::Makie.Text = text!(Makie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
     hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
+    hits_meshes::Vector{Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
     hits_mesh_descriptions::Vector{String} = []
     _plots::Dict{String, Any} = Dict()
     event_file::Union{Nothing, KM3io.ROOTFile} = nothing
@@ -703,11 +703,16 @@ end
 
 function start_eventloop(rba; interactive=true)
     println("Creating screen")
-    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
-    glw = screen.glscreen
-    println("Setting window position and size")
-    GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
-    GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
+    if BACKEND === :webgl
+        # Let WGLMakie create its own screen so the canvas fills the browser window.
+        screen = display(rba.scene)
+    else
+        screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
+        glw = screen.glscreen
+        println("Setting window position and size")
+        GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
+        GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
+    end
 
     scene = rba.scene
 
@@ -733,7 +738,7 @@ function start_eventloop(rba; interactive=true)
 
     recording_task = @async fps_renderloop(screen, recorder)
 
-    on(screen.render_tick) do tick
+    function animation_step!()
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
         end
@@ -759,6 +764,20 @@ function start_eventloop(rba; interactive=true)
             rba.simparams.frame_idx += rba.simparams.speed
         end
     end
+
+    if BACKEND === :webgl
+        # WGLMakie has no render_tick; drive the animation with a Julia Timer.
+        # isopen(screen) is false until the browser connects, so don't gate on it —
+        # just let the timer run. A capped FPS reduces WebSocket traffic.
+        anim_timer = Timer(0.0; interval=1/min(rba.simparams.fps, 10)) do _
+            animation_step!()
+        end
+    else
+        on(screen.render_tick) do _
+            animation_step!()
+        end
+    end
+
     if !interactive
         wait(screen)
         wait(recording_task)

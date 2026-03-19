@@ -109,37 +109,44 @@ function stop!(recorder::VideoRecorder)
     return
 end
 
-function copy_colorbuffer!(screen)
-    ctex = screen.framebuffer.buffers[:color]
-    if size(ctex) != size(screen.framecache)
-        screen.framecache = Matrix{RGB{N0f8}}(undef, size(ctex))
+if BACKEND !== :webgl
+    function copy_colorbuffer!(screen::GLMakie.Screen)
+        ctex = screen.framebuffer.buffers[:color]
+        if size(ctex) != size(screen.framecache)
+            screen.framecache = Matrix{RGB{N0f8}}(undef, size(ctex))
+        end
+        GLMakie.fast_color_data!(screen.framecache, ctex)
+        return copy(screen.framecache)
     end
-    GLMakie.fast_color_data!(screen.framecache, ctex)
-    return copy(screen.framecache)
+
+    function fps_renderloop(screen::GLMakie.Screen, recorder)
+        Makie.reset!(screen.timer, 1.0 / screen.config.framerate)
+        while isopen(screen)
+            GLMakie.pollevents(screen, Makie.RegularRenderTick)
+            GLMakie.poll_updates(screen)
+            GLMakie.render_frame(screen)
+            GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
+            GC.safepoint()
+            if recorder.recording[]
+                frame = copy_colorbuffer!(screen)
+                # Non-blocking put with timeout to avoid hanging
+                # TODO: currently the buffer length is not checked, so the memory
+                # can fill easily fill up. This proably needs to be made a little
+                # bit more user-friendly ;) Let's leave it here for now...
+                # if !isready(recorder.frames) || length(recorder.frames.data) < 90
+                    put!(recorder.frames, frame)
+                # else
+                #     @warn "Frame buffer full, dropping frame"
+                # end
+            end
+            sleep(screen.timer)
+        end
+        GLMakie.destroy!(screen)
+        return nothing
+    end
 end
 
-function fps_renderloop(screen::GLMakie.Screen, recorder)
-    Makie.reset!(screen.timer, 1.0 / screen.config.framerate)
-    while isopen(screen)
-        GLMakie.pollevents(screen, Makie.RegularRenderTick)
-        GLMakie.poll_updates(screen)
-        GLMakie.render_frame(screen)
-        GLMakie.GLFW.SwapBuffers(GLMakie.to_native(screen))
-        GC.safepoint()
-        if recorder.recording[]
-            frame = copy_colorbuffer!(screen)
-            # Non-blocking put with timeout to avoid hanging
-            # TODO: currently the buffer length is not checked, so the memory
-            # can fill easily fill up. This proably needs to be made a little
-            # bit more user-friendly ;) Let's leave it here for now...
-            # if !isready(recorder.frames) || length(recorder.frames.data) < 90
-                put!(recorder.frames, frame)
-            # else
-            #     @warn "Frame buffer full, dropping frame"
-            # end
-        end
-        sleep(screen.timer)
-    end
-    GLMakie.destroy!(screen)
+function fps_renderloop(screen, recorder)
+    @warn "fps_renderloop is not supported with the WebGL backend; rendering is handled by the browser"
     return nothing
 end

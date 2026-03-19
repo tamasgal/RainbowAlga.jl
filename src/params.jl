@@ -3,13 +3,17 @@ Base.@kwdef mutable struct DisplayParams
     size::Tuple{Int, Int} = (600, 600)
 end
 
-const displayparams = let m = GLFW.GetVideoMode(GLFW.GetPrimaryMonitor())
-    width = Int(round(m.width * 0.6))
-    height = Int(round(m.height * 0.6))
-    DisplayParams(
-        pos = (Int(round((m.width - width)/2)), Int(round((m.height - height)/2))),
-        size = (width, height)
-    )
+const displayparams = if BACKEND === :webgl
+    DisplayParams(pos=(0, 0), size=(1280, 800))
+else
+    let m = GLFW.GetVideoMode(GLFW.GetPrimaryMonitor())
+        width = Int(round(m.width * 0.8))
+        height = Int(round(m.height * 0.8))
+        DisplayParams(
+            pos = (Int(round((m.width - width)/2)), Int(round((m.height - height)/2))),
+            size = (width, height)
+        )
+    end
 end
 
 Base.@kwdef mutable struct SimParams

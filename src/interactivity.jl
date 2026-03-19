@@ -233,7 +233,9 @@ function register_events(rba::RBA, screen, recorder)
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.v)
-            if recorder.recording[]
+            if BACKEND === :webgl
+                @warn "Video recording is not supported with the WebGL backend"
+            elseif recorder.recording[]
                 println("Recording stopped...")
                 stop!(recorder)
             else

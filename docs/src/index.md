@@ -66,10 +66,10 @@ Apply custom, physics-based colourings with [`recolor!`](@ref) and
 Add your own primitives or text labels and remove them again with `delete!`:
 
 ```julia
-mysphere = annotate!(Point3f(32, 1, 56), :Sphere; size = 8, color = :gold)
+mysphere = annotate!((32, 1, 56), :Sphere; size = 8, color = :gold)
 delete!(mysphere)
 
-annotate!(Point3f(0, 0, 700), "North"; fontsize = 30)
+annotate!((0, 0, 700), "North"; fontsize = 30)
 ```
 
 See [`annotate!`](@ref); the global scene is reachable with [`global_scene`](@ref) if you

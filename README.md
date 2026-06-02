@@ -11,9 +11,8 @@ Cherenkov cones and photon hit clouds in real time. The underlying engine is
 
 ![RainbowAlga Screenshot](https://git.km3net.de/tgal/RainbowAlga.jl/-/raw/main/docs/images/RainbowAlga_Screenshot.png?ref_type=heads)
 
-> [!NOTE]
-> RainbowAlga opens a real OpenGL window, so it needs a working GPU/display. On a
-> headless machine, run it against a virtual framebuffer (e.g. `xvfb-run julia ...`).
+> **Note:** RainbowAlga opens a real OpenGL window, so it needs a working GPU/display.
+> On a headless machine, run it against a virtual framebuffer (e.g. `xvfb-run julia ...`).
 
 ## Installation
 
@@ -104,11 +103,11 @@ You can add your own primitives (`:Sphere`, `:Cube`, `:Cylinder`) or text labels
 scene and remove them again with `delete!`:
 
 ```julia
-julia> mysphere = annotate!(Point3f(32, 1, 56), :Sphere; size=8, color=:gold)
+julia> mysphere = annotate!((32, 1, 56), :Sphere; size=8, color=:gold)
 
 julia> delete!(mysphere)
 
-julia> annotate!(Point3f(0, 0, 700), "North"; fontsize=30)
+julia> annotate!((0, 0, 700), "North"; fontsize=30)
 ```
 
 `size` is the radius (sphere/cylinder) or half-side (cube); extra keyword arguments are

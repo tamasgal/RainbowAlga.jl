@@ -19,7 +19,7 @@ struct Track
         β = v / KM3io.Constants.c
         θ = π/2 - acos(1/KM3io.Constants.INDEX_OF_REFRACTION_WATER/β)  # opening angle is "90deg - emission angle"
         p = range(0, 2π, length = 50)
-        u = 0:0.1:200
+        u = range(0, 200, length = 100)  # cone is linear in u, so a coarse grid suffices
         x = [u * sin(p) * tan(θ) for p in p, u in u]
         y = [u * cos(p) * tan(θ) for p in p, u in u]
         z = [u for p in p, u in u]
@@ -44,19 +44,16 @@ struct Track
             R = I + V + V^2 * (1 - c) / s^2
         end
 
-        # Apply the rotation and then the translation
+        # Build the cone with its apex at the origin; it is positioned with translate!
+        # here and in draw!, so animating it is an O(1) GPU transform instead of
+        # re-tessellating the whole surface every frame.
         x_rot = R[1, 1] .* x .+ R[1, 2] .* y .+ R[1, 3] .* z
         y_rot = R[2, 1] .* x .+ R[2, 2] .* y .+ R[2, 3] .* z
         z_rot = R[3, 1] .* x .+ R[3, 2] .* y .+ R[3, 3] .* z
 
-        # Translate to the track position
-        target_pos = pos
-        x_new = x_rot .+ target_pos.x
-        y_new = y_rot .+ target_pos.y
-        z_new = z_rot .+ target_pos.z
-
-        s = surface!(scene, x_new, y_new, z_new, color = z, colormap = [ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.7), ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.0)], backlight = 2.0f0, transparency = true)
+        s = surface!(scene, x_rot, y_rot, z_rot, color = z, colormap = [ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.7), ColorSchemes.RGBA(0.0, 0.6, 0.8, 0.0)], backlight = 2.0f0, transparency = true)
         s.visible[] = with_cherenkov_cone
+        translate!(s, pos.x, pos.y, pos.z)
 
         new(pos, dir, v, t, _lines, s, x_rot, y_rot, z_rot)
     end
@@ -73,14 +70,14 @@ function draw!(track::Track, t; trail_length=0)
     startpos = track.pos - track.dir * trail_length
     if t < track.t
         track._lines[1] = [startpos, track.pos]
+        track.cone.visible[] && translate!(track.cone, track.pos.x, track.pos.y, track.pos.z)
         return track
     end
     endpos =  track.pos + track.v * track.dir * (t - track.t) / 1e9
     track._lines[1] = [startpos, endpos]
     if track.cone.visible[]
-        track.cone[1][] = track.cone_x .+ endpos.x
-        track.cone[2][] = track.cone_y .+ endpos.y
-        track.cone[3][] = track.cone_z .+ endpos.z
+        # O(1) GPU translation of the apex; no per-frame re-tessellation/allocation.
+        translate!(track.cone, endpos.x, endpos.y, endpos.z)
     end
     track
 end

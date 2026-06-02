@@ -396,14 +396,11 @@ end
 
 # Control functions to steer the 3D simulation
 isstopped(rba::RBA) = rba.simparams.stopped
-stop(rba::RBA) = rba.simparams.stopped = true
-start(rba::RBA) = rba.simparams.stopped = false
 reset_time(rba::RBA) = rba.simparams.frame_idx = 0
 faster(rba::RBA, n::Int) = rba.simparams.speed += n
 slower(rba::RBA, n::Int) = rba.simparams.speed -= n
 increasetot(rba::RBA, t::Float64) = rba.simparams.min_tot += t
 decreasetot(rba::RBA, t::Float64) = rba.simparams.min_tot -= t
-speed(rba::RBA) = rba.simparams.speed
 toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !global_rba().simparams.rotation_enabled
 toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !global_rba().simparams.loop_enabled
 rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
@@ -428,10 +425,3 @@ function setfps!(rba::RBA, fps::Integer)
     nothing
 end
 setfps!(fps::Integer) = setfps!(global_rba(), fps)
-
-function describe!(rba::RBA, hitscloud_idx::Integer, description::AbstractString)
-    rba.hitsclouds[hitscloud_idx].description = description
-end
-function describe!(hitscloud_idx::Integer, description::AbstractString)
-    describe!(global_rba(), hitscloud_idx, description)
-end

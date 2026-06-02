@@ -37,32 +37,3 @@ function generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), early_hit_th
     end
     colors
 end
-
-
-# Shower locations (reference https://git.km3net.de/working_groups/dpdq/mass_production_2023/-/issues/49#note_68700):
-# 190, 295 and 450 m from the best jpp track vertex, quite close to what Aart found. Although it might be 4 showers as well at 170, 190, 290, 450 m.
-function generate_shower_colors(muon, hits, shower_distance; threshold=200)
-    colors = ColorSchemes.RGBA{Float64}[]
-
-    t₀ = first(triggered(hits)).t
-
-#    for (shower_distance, color) in [(295, ColorSchemes.RGB(0.0, 1.0, 0.2)), (450, ColorSchemes.RGB(1.0, 0.0, 0.0))]
-
-    shower_vertex = muon.pos + muon.dir * shower_distance
-    shower_time = muon.t + KM3io.Constants.C_LIGHT * shower_distance
-
-    for hit in hits
-        distance = LinearAlgebra.norm(shower_vertex - hit.pos)
-        shower_arrival_time = shower_time + distance * KM3io.Constants.C_WATER
-
-        Δt = hit.t - shower_arrival_time
-
-        if hit.t > shower_time && (-100 < Δt < threshold)
-            color = ColorSchemes.RGBA(1.0, 0.0, 0.0, 1.0)
-        else
-            color = ColorSchemes.RGBA(0.0, 0.0, 0.0, 0.3)
-        end
-        push!(colors, color)
-    end
-    colors
-end

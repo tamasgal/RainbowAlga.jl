@@ -1,27 +1,93 @@
+# Core data containers: Hit, HitsCloud and the RBA scene object.
+
+struct Hit
+    pos::Position{Float64}
+    dir::Direction{Float64}
+    tot::Float64
+    t::Float64
+end
+
 """
-    AbstractEventFile
 
-Supertype for event sources. An event file bundles the events together with the
-detector geometry needed to display them, so a single object fully describes what to
-show. Derive from this type and implement the interface below to make a custom event
-source navigable with [`next_event!`](@ref) / [`previous_event!`](@ref):
+Pure-data container for a set of hits: their positions and (time-based) colours plus a
+`description`. The hits are not a GPU object themselves; the scene holds a single shared
+`MeshScatter` (`RBA.hits_mesh`) which is reconfigured from the selected cloud. The
+`description` doubles as the name of the `ColorSchemes` colour map used for the colorbar.
 
-  - `geometry(f)::Detector` -- the detector geometry (drawn once, including DOMs
-    without hits).
-  - `nevents(f)::Int` -- the number of events available.
-  - `eventsample(f, idx::Int)` -- a named tuple
-    `(; hits, t_range, frame_index, trigger_counter, event)` describing event `idx`,
-    where `hits` are calibrated hits, `t_range` is an optional `(t_min, t_max)` used
-    for the colour/time window (or `nothing`), `frame_index`/`trigger_counter` are
-    shown in the infobox (use `0` if not applicable) and `event` is the raw event for
-    reconstructed/MC track overlays (or `nothing`).
-
-See [`EventFile`](@ref) for the built-in implementation covering KM3NeT online and
-offline ROOT files.
 """
-abstract type AbstractEventFile end
+mutable struct HitsCloud
+    hits::Vector{Hit}
+    positions::Vector{Point3f}
+    colors::Vector{RGBAf}
+    alpha::Float64
+    description::String
+end
+function Base.show(io::IO, h::HitsCloud)
+    print(io, "HitsCloud '$(h.description)' ($(length(h.hits)) hits)")
+end
 
-# Interface (extend these for custom AbstractEventFile subtypes)
-function geometry end
-function nevents end
-function eventsample end
+
+@kwdef mutable struct RBA
+    scene::Scene = Scene(backgroundcolor=RGBf(1.0))
+    cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat,
+        down_key          = Keyboard.unknown,  # conflicts with F (frame/TC jump)
+        zoom_out_key      = Keyboard.unknown,  # conflicts with O (auto-rotate)
+        increase_fov_key  = Keyboard.unknown,  # conflicts with B (dark mode)
+        decrease_fov_key  = Keyboard.unknown,  # conflicts with N (next event)
+        pan_right_key     = Keyboard.unknown,  # conflicts with L (loop)
+        roll_clockwise_key = Keyboard.unknown, # conflicts with E (event jump)
+        fix_x_key         = Keyboard.unknown,  # conflicts with X (infobox)
+    )
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
+    tracks::Vector{Track} = Track[]
+    hitsclouds::Vector{HitsCloud} = HitsCloud[]
+    center::Point3f = Point3f(0.0, 0.0, 0.0)
+    simparams::SimParams = SimParams()
+    perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
+    # A single shared mesh holds all hits; it is reconfigured (positions/colours/sizes)
+    # from the selected cloud instead of allocating a mesh per cloud or per event.
+    hits_mesh::MeshScatter{Tuple{Vector{Point{3, Float32}}}} = meshscatter!(scene, Point3f[], color = RGBAf[], markersize = Float64[])
+    _plots::Dict{String, Any} = Dict()
+    eventfile::Union{Nothing, AbstractEventFile} = nothing
+    current_event_idx::Int = 0
+    current_frame_index::Int = 0
+    current_trigger_counter::Int = 0
+    _colorbar::Dict{String, Any} = Dict{String, Any}()
+end
+Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
+
+function RBA(detector::Detector; kwargs...)
+    rba = RBA(kwargs...)
+
+    update!(rba, detector)
+    center!(rba.scene)
+    update_cam!(rba.scene, rba.cam, Vec3f(1000), center(detector), Vec3f(0, 0, 1))
+
+    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
+    # subwindow.clear = true
+    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
+    # plot!(subwindow, [1, 2, 3], rand(3))
+
+    rba
+end
+
+get_current_cam_position(rba::RBA) = rba.cam.eyeposition.val
+get_current_cam_position() = get_current_cam_position(global_rba())
+get_current_cam_target(rba::RBA) = rba.cam.lookat.val
+get_current_cam_target() = get_current_cam_target(global_rba())
+
+function save_perspective(rba::RBA, idx::Int)
+    pos = get_current_cam_position(rba)
+    target = get_current_cam_target(rba)
+    rba.perspectives[idx] = (pos, target)
+    println("Perspective $idx saved.\n  Position: $(pos)\n  Target: $(target)")
+end
+save_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
+function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
+    rba.perspectives[idx] = (eyeposition, lookat)
+end
+save_perspective(idx::Int, eyeposition, lookat) = save_perspective(global_rba(), idx::Int, eyeposition, lookat)
+function load_perspective(rba::RBA, idx::Int)
+    update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
+end
+load_perspective(idx::Int) = load_perspective(global_rba(), idx::Int)

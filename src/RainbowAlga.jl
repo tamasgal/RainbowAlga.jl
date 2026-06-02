@@ -20,7 +20,9 @@ export global_scene
 export select_first_hits, select_cherenkov_hits
 export positionof
 export load_event!, next_event!, previous_event!
+export AbstractEventFile, EventFile, load!, geometry, nevents, eventsample
 
+include("types.jl")
 include("params.jl")
 include("recording.jl")
 include("core.jl")
@@ -28,5 +30,6 @@ include("interactivity.jl")
 include("runtime.jl")
 include("artists.jl")
 include("utils.jl")
+include("eventfile.jl")
 
 end  # module

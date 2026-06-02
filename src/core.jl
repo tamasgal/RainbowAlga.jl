@@ -30,11 +30,19 @@ struct Track
         s = norm(_v)
         c = dot(a, b)
 
-        V = [0.0 -_v[3] _v[2];
-            _v[3] 0.0 -_v[1];
-            -_v[2] _v[1] 0.0]
+        if s < 1e-10
+            # Track is (anti)parallel to the cone axis (0, 0, -1): the cross product
+            # vanishes and Rodrigues' formula would divide by zero. Use the exact
+            # rotation: identity when parallel, 180 deg about the x-axis when antiparallel.
+            R = c > 0 ? [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0] :
+                        [1.0 0.0 0.0; 0.0 -1.0 0.0; 0.0 0.0 -1.0]
+        else
+            V = [0.0 -_v[3] _v[2];
+                _v[3] 0.0 -_v[1];
+                -_v[2] _v[1] 0.0]
 
-        R = I + V + V^2 * (1 - c) / s^2
+            R = I + V + V^2 * (1 - c) / s^2
+        end
 
         # Apply the rotation and then the translation
         x_rot = R[1, 1] .* x .+ R[1, 2] .* y .+ R[1, 3] .* z
@@ -86,13 +94,17 @@ end
 
 """
 
-Container for hits including the mesh scatter and a description.
+Pure-data container for a set of hits: their positions and (time-based) colours plus a
+`description`. The hits are not a GPU object themselves; the scene holds a single shared
+`MeshScatter` (`RBA.hits_mesh`) which is reconfigured from the selected cloud. The
+`description` doubles as the name of the `ColorSchemes` colour map used for the colorbar.
 
 """
 mutable struct HitsCloud
     hits::Vector{Hit}
-    positions::Observable{Vector{GeometryBasics.Point{3, Float32}}}
-    mesh::MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float32}}}}
+    positions::Vector{Point3f}
+    colors::Vector{RGBAf}
+    alpha::Float64
     description::String
 end
 function Base.show(io::IO, h::HitsCloud)
@@ -117,12 +129,11 @@ end
     center::Point3f = Point3f(0.0, 0.0, 0.0)
     simparams::SimParams = SimParams()
     perspectives::Vector{Tuple{Vec{3, Float64}, Vec{3, Float64}}} = fill((Vec3(1000.0), Vec3(0.0)), 9)
-    hits::Union{Vector{XCalibratedHit}, Vector{KM3io.CalibratedHit}} = XCalibratedHit[]
-    hits_meshes::Vector{GLMakie.Makie.MeshScatter{Tuple{Vector{GeometryBasics.Point{3, Float64}}}}} = []
-    hits_mesh_descriptions::Vector{String} = []
+    # A single shared mesh holds all hits; it is reconfigured (positions/colours/sizes)
+    # from the selected cloud instead of allocating a mesh per cloud or per event.
+    hits_mesh::MeshScatter{Tuple{Vector{Point{3, Float32}}}} = meshscatter!(scene, Point3f[], color = RGBAf[], markersize = Float64[])
     _plots::Dict{String, Any} = Dict()
-    event_file::Union{Nothing, KM3io.ROOTFile} = nothing
-    event_detector::Union{Nothing, Detector} = nothing
+    eventfile::Union{Nothing, AbstractEventFile} = nothing
     current_event_idx::Int = 0
     current_frame_index::Int = 0
     current_trigger_counter::Int = 0
@@ -164,7 +175,49 @@ save_perspective(idx::Int, eyeposition, lookat) = save_perspective(global_rba(),
 function load_perspective(rba::RBA, idx::Int)
     update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
 end
-load_perspective(idx::Int) = save_perspective(global_rba(), idx::Int)
+load_perspective(idx::Int) = load_perspective(global_rba(), idx::Int)
+
+"""
+Index (1-based) of the currently selected hits cloud, or 0 if there are none.
+The selection is driven by `simparams.hits_selector`, cycled with the C key.
+"""
+active_hitscloud_index(rba::RBA) =
+    isempty(rba.hitsclouds) ? 0 : abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
+
+"""
+
+Upload the data of the currently selected hits cloud into the single shared GPU mesh
+(`rba.hits_mesh`). Positions, colours and the alpha value are uploaded here and only
+change when the selection changes (or a new event/cloud is loaded); the per-frame
+animation in the render loop only updates `markersize`, so the mesh is reused and
+resized on the GPU instead of being reallocated.
+
+"""
+function apply_hitscloud!(rba::RBA)
+    idx = active_hitscloud_index(rba)
+    rba.simparams.displayed_hitscloud = idx
+    hm = rba.hits_mesh
+    if idx == 0
+        hm.positions[] = Point3f[]
+        hm.color[] = RGBAf[]
+        hm.markersize[] = Float64[]
+        return rba
+    end
+    cloud = rba.hitsclouds[idx]
+    hm.positions[] = cloud.positions
+    hm.color[] = cloud.colors
+    hm.markersize[] = zeros(length(cloud.positions))
+    hm.alpha[] = cloud.alpha
+    rba
+end
+
+"""
+Marker sizes for the animation at simulation time `t`: a hit becomes visible (scaled)
+once the clock has reached it (`t >= hit.t`) and it passes the ToT cut (`min_tot`),
+otherwise its size is 0. Returns one size per hit in `cloud`.
+"""
+hit_markersizes(cloud::HitsCloud, t, scale, min_tot) =
+    [(h.tot >= min_tot && t >= h.t) ? scale * sqrt(h.tot / 255) : 0.0 for h in cloud.hits]
 
 
 """
@@ -174,7 +227,7 @@ Adds hits to the scene.
 """
 function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:hawaii, t_range=nothing) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
 
-    positions = Observable(generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance))
+    positions = generate_hit_positions(hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
 
     if !isnothing(t_range)
         t_min, t_max = t_range
@@ -189,21 +242,20 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     rba.simparams.loop_end_frame_idx = Int(ceil(Δt))
 
     cmap = getproperty(ColorSchemes, colorscheme)
-    hits_mesh = meshscatter!(
-        rba.scene,
-        positions,
-        color = [cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)] for h ∈ hits],
-        markersize = [0 for _ ∈ hits],
-        alpha = 0.9,
-    )
+    # Guard against Δt == 0 (a single hit or all hits at the same time) which would make
+    # the colour fraction 0/0 = NaN.
+    colorfrac(h) = iszero(Δt) ? 0.0 : clamp((h.t - t_min) / Δt, 0.0, 1.0)
+    colors = [RGBAf(cmap[colorfrac(h)]) for h ∈ hits]
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
-    push!(rba.hitsclouds, HitsCloud(rbahits, positions, hits_mesh, string(colorscheme)))
+    push!(rba.hitsclouds, HitsCloud(rbahits, positions, colors, 0.9, string(colorscheme)))
     rba._colorbar["default_t_offset"] = rba.simparams.t_offset
     rba._colorbar["default_loop_end_frame_idx"] = rba.simparams.loop_end_frame_idx
+    apply_hitscloud!(rba)
     update_colorbar!(rba)
+    rba
 end
-function add!(hits::T; pmt_distance=5, hit_distance=2) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
-    add!(global_rba(), hits; pmt_distance=pmt_distance, hit_distance=hit_distance)
+function add!(hits::T; kwargs...) where T<:Union{Vector{KM3io.CalibratedHit}, Vector{KM3io.XCalibratedHit}, Vector{KM3io.CalibratedMCHit}}
+    add!(global_rba(), hits; kwargs...)
 end
 """
 Recompute and apply hit colors for all clouds based on the current `t_offset` and
@@ -214,22 +266,26 @@ function recolor_hits_from_simparams!(rba::RBA)
     t_min = rba.simparams.t_offset + rba.simparams.cb_t_offset
     Δt = Float64(rba.simparams.loop_end_frame_idx)
     iszero(Δt) && return
-    for hitscloud in rba.hitsclouds
+    active = active_hitscloud_index(rba)
+    for (idx, hitscloud) in enumerate(rba.hitsclouds)
+        # Only time-coloured clouds (whose description names a ColorScheme) follow the
+        # colorbar; Cherenkov clouds keep their Δt-residual colours.
         cmap = try
             getproperty(ColorSchemes, Symbol(hitscloud.description))
         catch
-            ColorSchemes.hawaii
+            continue
         end
-        hitscloud.mesh.color = [cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)] for h in hitscloud.hits]
+        hitscloud.colors = [RGBAf(cmap[clamp((h.t - t_min) / Δt, 0.0, 1.0)]) for h in hitscloud.hits]
+        idx == active && (rba.hits_mesh.color[] = hitscloud.colors)
     end
     nothing
 end
 
 function clearhits!(rba::RBA)
-    for hitscloud in rba.hitsclouds
-        hitscloud.mesh in rba.scene && delete!(rba.scene, hitscloud.mesh)
-    end
+    rba.simparams.hits_selector = 0
     empty!(rba.hitsclouds)
+    # Keep the shared mesh alive (reused across events); just empty its data.
+    apply_hitscloud!(rba)
     update_colorbar!(rba)
 end
 clearhits!() = clearhits!(global_rba())
@@ -241,44 +297,84 @@ function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     if length(colors) != length(hitscloud.hits)
         error("$(length(colors)) colors were provided, however one color per hit is requred => a total of $(length(hitscloud.hits)) for this hits cloud.")
     end
-    hitscloud.mesh.color = colors
+    hitscloud.colors = convert(Vector{RGBAf}, RGBAf.(colors))
+    # Refresh the shared mesh only if this cloud is the one currently displayed.
+    active_hitscloud_index(rba) == hitscloud_idx && (rba.hits_mesh.color[] = hitscloud.colors)
     nothing
 end
 
 recolor!(hitscloud_idx::Integer, colors) = recolor!(global_rba(), hitscloud_idx, colors)
 
-function update!(rba::RBA, track::T, hits, particle_name::AbstractString, track_id::Int) where T<:Union{Track, Trk}
-    positions = Observable(generate_hit_positions(hits))
+"""
 
-    cherenkov_photons = cherenkov(track, hits)
+Add a hits cloud coloured by the Cherenkov time residual (`Δt`) with respect to
+`track`. The hits and positions are the same as the plain hits cloud, so cycling with
+the C key compares the same photons against different track hypotheses.
 
-    cherenkov_hits_mesh = meshscatter!(
-        rba.scene,
-        positions,
-        color = [reverse(ColorSchemes.redblue)[abs(c.Δt / 50.0)] for c in cherenkov_photons],
-        markersize = [0 for _ ∈ hits],
-        alpha = 0.9,
-    )
-
-    push!(rba.hitsclouds, HitsCloud([], positions, cherenkov_hits_mesh, "Cherenkov wrt. track #$(track_id) ($particle_name)"))
+"""
+function add_cherenkov_cloud!(rba::RBA, track, hits, description::AbstractString)
+    positions = generate_hit_positions(hits)
+    cphotons = cherenkov(track, hits)
+    cmap = reverse(ColorSchemes.redblue)
+    colors = [RGBAf(cmap[clamp(abs(c.Δt) / 50.0, 0.0, 1.0)]) for c in cphotons]
+    rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
+    push!(rba.hitsclouds, HitsCloud(rbahits, positions, colors, 0.9, description))
+    apply_hitscloud!(rba)
+    update_colorbar!(rba)
     nothing
 end
 
+"""
+
+Add the reconstructed (best Jpp muon) and MC lepton tracks of an offline event,
+together with their Cherenkov hits clouds. Failures for a single track are warned
+about but do not abort loading the event.
+
+"""
+function add_reco_and_mc!(rba::RBA, event::Evt, hits)
+    if length(event.trks) > 0
+        reco = bestjppmuon(event)
+        if !ismissing(reco)
+            try
+                println("  adding best Jpp muon")
+                track = Track(rba.scene, reco.pos, reco.dir, KM3io.Constants.c, reco.t; color=RGBf(5/255, 176/255, 255/255))
+                add!(rba, track)
+                isempty(hits) || add_cherenkov_cloud!(rba, track, hits, "Cherenkov wrt. Jpp muon (lik=$(round(Int, reco.lik)))")
+            catch e
+                @warn "Could not add the reconstructed Jpp muon" exception=(e, catch_backtrace())
+            end
+        end
+    end
+
+    for mc_track in event.mc_trks
+        Corpuscles.islepton(mc_track.type) || continue
+        try
+            particle_name = string(Corpuscles.Particle(mc_track.type).name)
+            println("  found a lepton: $(particle_name)")
+            color = isnothing(match(r"nu", particle_name)) ? RGBf(0.0, 0.8, 0.7) : RGBf(1.0, 0.2, 0.0)
+            track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, mc_track.t; color=color)
+            add!(rba, track)
+            if !isempty(hits) && Corpuscles.charge(mc_track.type) != 0
+                println("   -> adding Cherenkov hit information")
+                add_cherenkov_cloud!(rba, track, hits, "Cherenkov wrt. MC $(particle_name) (#$(mc_track.id))")
+            end
+        catch e
+            @warn "Could not add MC track" exception=(e, catch_backtrace())
+        end
+    end
+    rba
+end
+
+# Removes the per-event plots (track lines and Cherenkov cones) and the hits clouds,
+# while keeping the detector geometry and the shared hits mesh alive so they are reused
+# when stepping through events.
 function Base.empty!(rba::RBA)
     for track in rba.tracks
         delete!(rba.scene, track._lines)
+        delete!(rba.scene, track.cone)
     end
     empty!(rba.tracks)
-    empty!(rba.hits)
-    for hits_mesh in rba.hits_meshes
-        delete!(rba.scene, hits_mesh)
-    end
-    empty!(rba.hits_meshes)
-    empty!(rba.hits_mesh_descriptions)
-
-    # TODO: this is need to get rid of everything, otherwise "plots" still contains hundreds of elements
-    # Not sure why...
-    empty!(rba.scene.plots)
+    clearhits!(rba)
     nothing
 end
 
@@ -404,30 +500,25 @@ function basegrid!(rba; center=(0, 0, 0), span=(-1000, 1000), spacing=50, linewi
 end
 
 """
-Load the event at sequential index `idx` from the attached ROOTFile, calibrate its
-snapshot hits, and replace the current hit display.
+Load the event at sequential index `idx` from the attached [`AbstractEventFile`] and
+replace the current hit display (and, for offline events, the reconstructed/MC tracks).
+The detector geometry and the shared hits mesh are reused.
 """
 function load_event!(rba::RBA, idx::Int)
-    isnothing(rba.event_file) && return
-    isnothing(rba.event_detector) && return
-    nevents = length(rba.event_file.online.events)
-    idx = clamp(idx, 1, nevents)
+    f = rba.eventfile
+    isnothing(f) && return
+    n = nevents(f)
+    n == 0 && return
+    idx = clamp(idx, 1, n)
     rba.current_event_idx = idx
-    clearhits!(rba)
-    event = getevent(rba.event_file.online, idx)
-    rba.current_frame_index = event.header.frame_index
-    rba.current_trigger_counter = event.header.trigger_counter
-    chits = calibrate(rba.event_detector, event.snapshot_hits)
-    t_range = if !isempty(event.triggered_hits)
-        tchits = calibrate(rba.event_detector, event.triggered_hits)
-        extrema(h.t for h ∈ tchits)
-    else
-        nothing
-    end
-    add!(rba, chits; t_range=t_range)
-    #add!(rba, filter(h->h.t > t_range[1], chits); t_range=t_range)
+    empty!(rba)  # clears tracks + hits, keeps detector + shared mesh
+    s = eventsample(f, idx)
+    rba.current_frame_index = s.frame_index
+    rba.current_trigger_counter = s.trigger_counter
+    isempty(s.hits) || add!(rba, s.hits; t_range=s.t_range)
+    isnothing(s.event) || add_reco_and_mc!(rba, s.event, s.hits)
     reset_time(rba)
-    println("Event $idx / $nevents loaded")
+    println("Event $idx / $n loaded")
     nothing
 end
 load_event!(idx::Int) = load_event!(global_rba(), idx)
@@ -450,81 +541,45 @@ end
 run(;interactive=true) = run(global_rba(); interactive=interactive)
 
 """
-Start RainbowAlga with a `ROOTFile` and a calibrated `Detector`.  The first event is
-loaded immediately; N / Shift+N navigate forward/backward and E lets you jump by index.
+    load!([rba::RBA], f::AbstractEventFile)
+
+Attach an event file, draw its detector geometry once and load the first event. Does
+not open a window (use [`run`](@ref) for that).
 """
-function run(rootfile::KM3io.ROOTFile, detector::Detector; interactive=true)
-    rba = global_rba()
-    update!(rba, detector)
-    rba.event_file = rootfile
-    rba.event_detector = detector
+load!(f::AbstractEventFile) = load!(global_rba(), f)
+function load!(rba::RBA, f::AbstractEventFile)
+    update!(rba, geometry(f))
+    rba.eventfile = f
     load_event!(rba, 1)
+    rba
+end
+
+"""
+Start RainbowAlga with an [`AbstractEventFile`] (e.g. an [`EventFile`] wrapping a
+KM3NeT online or offline ROOT file). The geometry is drawn once and the first event is
+shown; N / Shift+N navigate forward/backward and E lets you jump by index.
+"""
+function run(f::AbstractEventFile; interactive=true)
+    rba = global_rba()
+    load!(rba, f)
     run(rba; interactive=interactive)
 end
 
 """
-Run the RainbowAlga GUI and display the specified event.
+Display a single offline event: clear the previous event, add its hits and (when
+present) the reconstructed and MC tracks, then recentre the camera.
 """
 function display!(rba::RBA, event::Evt)
+    empty!(rba)
     rba.simparams.frame_idx = 0
-
-    chits = event.hits
-    update!(rba, chits)
-
-    if length(event.trks) > 0
-        println("Reconstruction information found, adding the best candidates")
-        reco = bestjppmuon(event)
-        if !ismissing(reco)
-            println("  adding best Jpp muon")
-            track = Track(rba.scene, reco.pos, reco.dir, KM3io.Constants.c, reco.t; color=RGBf(5/255, 176/255, 255/255))
-            add!(rba, track)
-            update!(rba, track, chits, "Jpp muon (lik = $(reco.lik))", reco.id)
-        end
-    end
-
-    length(event.mc_trks) > 0 && println("MC track information found.")
-    for mc_track ∈ event.mc_trks
-        !islepton(mc_track.type) && continue
-
-        particle_name = Particle(mc_track.type).name
-
-        println("  found a lepton: $(particle_name)")
-
-        if tree == :online
-            track_t = event.mc_t - (event.header.frame_index - 1) * 100e6
-        else
-            track_t = mc_track.t
-        end
-
-        if !isnothing(match(r"nu(.+)", particle_name))
-            color = RGBf(1.0, 0.2, 0)
-        else
-            color = RGBf(0.0, 0.8, 0.7)
-        end
-
-        # track = Track(rba.scene, mc_track.pos - mc_track.dir * abs(mc_track.len), mc_track.dir, KM3io.Constants.c, track_t; color=color)
-        track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, track_t; color=color)
-        # TODO: rba.scene should not be needed
-        add!(rba, track)
-
-
-        if charge(mc_track.type) != 0
-            println("   -> adding Cherenkov hit information")
-            update!(rba, track, chits, particle_name, mc_track.id)
-        end
-    end
-
+    hits = event.hits
+    isempty(hits) || add!(rba, hits)
+    add_reco_and_mc!(rba, event, hits)
     center!(rba.scene)
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
-
-    # subwindow = Scene(scene, px_area=Observable(Rect(100, 100, 200, 200)), clear=true, backgroundcolor=:green)
-    # subwindow.clear = true
-    # meshscatter!(subwindow, rand(Point3f, 10), color=:gray)
-    # plot!(subwindow, [1, 2, 3], rand(3))
-
-    # Threads.@spawn :interactive start_eventloop(rba)
     rba
 end
+display!(event::Evt) = display!(global_rba(), event)
 
 """
 Generates the text for the infobox on the lower left.
@@ -541,16 +596,14 @@ function update_infotext!(rba)
     push!(lines, @sprintf "Position: x=%.1f y=%.1f z=%1.f" get_current_cam_position()...)
     push!(lines, @sprintf "Target: x=%.1f y=%.1f z=%1.f" get_current_cam_target()...)
 
-    # TODO: hits_selector is a counter and does not respect the actual number of hits hits_meshes
-    # we need to make sure it does not overflow, but we should make this better upstream
     if length(rba.hitsclouds) > 0
-        idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
-        push!(lines, "Hits cloud #$(idx): $(rba.hitsclouds[idx].description)")
+        idx = active_hitscloud_index(rba)
+        push!(lines, "Hits cloud #$(idx)/$(length(rba.hitsclouds)): $(rba.hitsclouds[idx].description)")
     end
 
-    if !isnothing(rba.event_file)
-        nevents = length(rba.event_file.online.events)
-        idx_str = rba.current_event_idx > 0 ? "Event: $(rba.current_event_idx) / $nevents  " : ""
+    if !isnothing(rba.eventfile)
+        n = nevents(rba.eventfile)
+        idx_str = rba.current_event_idx > 0 ? "Event: $(rba.current_event_idx) / $n  " : ""
         push!(lines, "$(idx_str)frame=$(rba.current_frame_index)  TC=$(rba.current_trigger_counter)  [N/Shift+N: next/prev, E: #, F: frame/TC]")
     end
     if rba.simparams.event_input_mode
@@ -655,16 +708,23 @@ function update_colorbar!(rba::RBA)
     n = size(cbar_colors[], 2)
     n_ticks_max = length(cbar_ticks_text[])
 
-    idx = abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1
+    idx = active_hitscloud_index(rba)
     hitscloud = rba.hitsclouds[idx]
 
+    Δt = Float64(rba.simparams.loop_end_frame_idx)
+
+    # The time colorbar only applies to time-coloured clouds (whose description names a
+    # ColorScheme); hide it for Cherenkov clouds or a degenerate (zero) time window.
     cmap = try
         getproperty(ColorSchemes, Symbol(hitscloud.description))
     catch
-        ColorSchemes.hawaii
+        cbar_visible[] = false
+        return
     end
-
-    Δt = Float64(rba.simparams.loop_end_frame_idx)
+    if iszero(Δt)
+        cbar_visible[] = false
+        return
+    end
 
     new_colors = Matrix{RGBAf}(undef, 1, n)
     for i in 1:n
@@ -742,11 +802,16 @@ function start_eventloop(rba; interactive=true)
 
         t = rba.simparams.t_offset + rba.simparams.frame_idx
 
-        for (idx, hitscloud) in enumerate(rba.hitsclouds)
-            isselected = idx == (abs(rba.simparams.hits_selector) % length(rba.hitsclouds) + 1)
-            !isselected && continue
-            hit_sizes = [h.tot >= rba.simparams.min_tot && t >= h.t ? (1+(rba.simparams.hit_scaling/5)) * sqrt(h.tot/255) : 0 for h ∈ hitscloud.hits]
-            hitscloud.mesh.markersize = hit_sizes
+        # Single shared mesh: reconfigure positions/colours only when the selection
+        # changed, then resize markers every tick to animate hits as time advances.
+        active = active_hitscloud_index(rba)
+        if active != rba.simparams.displayed_hitscloud
+            apply_hitscloud!(rba)
+        end
+        if active != 0
+            cloud = rba.hitsclouds[active]
+            scale = 1 + rba.simparams.hit_scaling / 5
+            rba.hits_mesh.markersize[] = hit_markersizes(cloud, t, scale, rba.simparams.min_tot)
         end
 
         for track ∈ rba.tracks

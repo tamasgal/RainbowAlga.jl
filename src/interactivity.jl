@@ -93,21 +93,7 @@ function register_events(rba::RBA, screen, recorder)
                         rba.simparams.frame_tc_input_stage = 0
                         rba.simparams.frame_index_buffer = ""
                         rba.simparams.trigger_counter_buffer = ""
-                        event_obj = getevent(rba.event_file.online, fi, tc)
-                        rba.current_event_idx = 0
-                        rba.current_frame_index = fi
-                        rba.current_trigger_counter = tc
-                        chits = calibrate(rba.event_detector, event_obj.snapshot_hits)
-                        t_range = if !isempty(event_obj.triggered_hits)
-                            tchits = calibrate(rba.event_detector, event_obj.triggered_hits)
-                            extrema(h.t for h ∈ tchits)
-                        else
-                            nothing
-                        end
-                        clearhits!(rba)
-                        add!(rba, chits; t_range=t_range)
-                        reset_time(rba)
-                        println("Loaded event with frame_index=$fi, trigger_counter=$tc")
+                        load_event_by_frame_tc!(rba, fi, tc)
                     else
                         rba.simparams.frame_tc_input_stage = 0
                         rba.simparams.frame_index_buffer = ""
@@ -302,7 +288,7 @@ function register_events(rba::RBA, screen, recorder)
             end
             return Consume()
         end
-        if !isnothing(rba.event_file)
+        if !isnothing(rba.eventfile)
             if ispressed(scene, Makie.Keyboard.n & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
                 previous_event!(rba)
                 return Consume()
@@ -340,7 +326,6 @@ function register_colorbar_events(rba::RBA)
     cb_w = rba._colorbar["cb_w"]
     cb_y_obs = rba._colorbar["cb_y"]
     cb_h = rba._colorbar["cb_h"]
-    win_h = displayparams.size[2]
 
     dragging = Ref(false)
     last_pos = Ref(Point2f(0, 0))
@@ -349,7 +334,9 @@ function register_colorbar_events(rba::RBA)
 
     on(events(scene).mousebutton, priority=100) do event
         # events().mouseposition uses window coords: (0,0) top-left, y-down.
-        # Flip y to match campixel coords (0,0) bottom-left, y-up.
+        # Flip y to match campixel coords (0,0) bottom-left, y-up. Read the current
+        # window height so the hit-test stays correct after a resize.
+        win_h = height(scene.viewport[])
         mpos = Point2f(events(scene).mouseposition[])
         cp_y = win_h - mpos[2]
         cb_x = cb_x_obs[]; cb_y = cb_y_obs[]
@@ -421,20 +408,14 @@ toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !global_rba().simpa
 toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !global_rba().simparams.loop_enabled
 rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
 function next_hits_colouring(rba::RBA)
-    hidehits!(rba)
+    isempty(rba.hitsclouds) && return
     rba.simparams.hits_selector += 1
     update_colorbar!(rba)
 end
 function previous_hits_colouring(rba::RBA)
-    hidehits!(rba)
+    isempty(rba.hitsclouds) && return
     rba.simparams.hits_selector -= 1
     update_colorbar!(rba)
-end
-function hidehits!(rba::RBA)
-    for hitscloud in rba.hitsclouds
-        n_hits = length(hitscloud.hits)
-        hitscloud.mesh.markersize = zeros(n_hits)
-    end
 end
 
 """

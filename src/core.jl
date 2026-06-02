@@ -763,7 +763,7 @@ end
 
 function start_eventloop(rba; interactive=true)
     println("Creating screen")
-    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga"), rba.scene)
+    screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga", framerate=rba.simparams.fps), rba.scene)
     glw = screen.glscreen
     println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
@@ -794,6 +794,12 @@ function start_eventloop(rba; interactive=true)
     recording_task = @async fps_renderloop(screen, recorder)
 
     on(screen.render_tick) do tick
+        # Keep the render loop paced at the requested FPS; picks up live setfps! changes.
+        if screen.config.framerate != rba.simparams.fps
+            screen.config.framerate = rba.simparams.fps
+            Makie.reset!(screen.timer, 1.0 / rba.simparams.fps)
+        end
+
         if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
             rba.simparams.frame_idx = 0
         end

@@ -278,14 +278,16 @@ function register_events(rba::RBA, screen, recorder)
             increasetot(rba, 0.5)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.h & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+        if ispressed(scene, Makie.Keyboard.equal)  # "=" / "+": larger hits
             rba.simparams.hit_scaling += 1
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.h)
-            if rba.simparams.hit_scaling > 1
-                rba.simparams.hit_scaling -= 1
-            end
+        if ispressed(scene, Makie.Keyboard.minus)  # "-": smaller hits
+            rba.simparams.hit_scaling > 1 && (rba.simparams.hit_scaling -= 1)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.h)  # toggle the keybindings overlay
+            toggle_help(rba)
             return Consume()
         end
         if !isnothing(rba.eventfile)

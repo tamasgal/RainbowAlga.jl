@@ -32,6 +32,7 @@ include("hits.jl")         # hit clouds + shared mesh
 include("detector.jl")     # detector geometry
 include("events.jl")       # event navigation + run
 include("colorbar.jl")     # interactive colorbar
+include("help.jl")         # keybindings overlay
 include("app.jl")          # infobox, render loop
 include("eventfile.jl")    # EventFile (online/offline)
 include("interactivity.jl")# keyboard + control functions

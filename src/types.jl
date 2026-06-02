@@ -29,14 +29,19 @@ end
 
 @kwdef mutable struct RBA
     scene::Scene = Scene(backgroundcolor=RGBf(1.0))
+    # Disable all default Camera3D keyboard controls (translate r/f/a/d/w/s, zoom u/o,
+    # fov b/n, pan j/l, tilt i/k, roll e/q, axis-fix x/y/z); RainbowAlga binds its own
+    # keys. Mouse rotate/zoom/pan still work.
     cam::Makie.Camera3D = cam3d!(scene, rotation_center = :lookat,
-        down_key          = Keyboard.unknown,  # conflicts with F (frame/TC jump)
-        zoom_out_key      = Keyboard.unknown,  # conflicts with O (auto-rotate)
-        increase_fov_key  = Keyboard.unknown,  # conflicts with B (dark mode)
-        decrease_fov_key  = Keyboard.unknown,  # conflicts with N (next event)
-        pan_right_key     = Keyboard.unknown,  # conflicts with L (loop)
-        roll_clockwise_key = Keyboard.unknown, # conflicts with E (event jump)
-        fix_x_key         = Keyboard.unknown,  # conflicts with X (infobox)
+        up_key = Keyboard.unknown, down_key = Keyboard.unknown,
+        left_key = Keyboard.unknown, right_key = Keyboard.unknown,
+        forward_key = Keyboard.unknown, backward_key = Keyboard.unknown,
+        zoom_in_key = Keyboard.unknown, zoom_out_key = Keyboard.unknown,
+        increase_fov_key = Keyboard.unknown, decrease_fov_key = Keyboard.unknown,
+        pan_left_key = Keyboard.unknown, pan_right_key = Keyboard.unknown,
+        tilt_up_key = Keyboard.unknown, tilt_down_key = Keyboard.unknown,
+        roll_clockwise_key = Keyboard.unknown, roll_counterclockwise_key = Keyboard.unknown,
+        fix_x_key = Keyboard.unknown, fix_y_key = Keyboard.unknown, fix_z_key = Keyboard.unknown,
     )
     infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]

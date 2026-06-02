@@ -33,6 +33,7 @@ function update_infotext!(rba)
     elseif rba.simparams.frame_tc_input_stage == 2
         push!(lines, "Jump to frame index: $(rba.simparams.frame_index_buffer)  TC: $(rba.simparams.trigger_counter_buffer)_  (ENTER loads, any other key cancels)")
     end
+    push!(lines, "Press H for keybindings")
 
     rba.infobox.text = join(lines, "\n")
 end
@@ -66,6 +67,7 @@ function start_eventloop(rba; interactive=true)
     register_events(rba, screen, recorder)
     setup_colorbar!(rba)
     register_colorbar_events(rba)
+    setup_help_overlay!(rba)
 
     recording_task = @async fps_renderloop(screen, recorder)
 

@@ -19,6 +19,7 @@ export generate_colors, save_perspective, load_perspective
 export global_scene
 export select_first_hits, select_cherenkov_hits
 export positionof
+export EventFile, load!, show_event!, next_event!, previous_event!, display!
 
 include("types.jl")
 include("params.jl")

@@ -26,7 +26,8 @@ Base.@kwdef mutable struct SimParams
     show_infobox::Bool = true
     screenshot_counter::Int = 0
     recording_counter::Int = 0
-    hits_selector::Int = 0  # selects the hits mesh (normal, cherenkov, ...)
+    hits_selector::Int = 0  # selects the hits cloud (normal, cherenkov, ...)
+    displayed_hitscloud::Int = 0  # index of the hits cloud currently uploaded to the shared mesh (0 = none)
     hit_scaling::Int = 5  # factor to multiply the size of the hits
     fps::Int = 24  # framews per second
 end

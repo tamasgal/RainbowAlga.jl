@@ -148,6 +148,14 @@ function register_events(rba::RBA, screen, recorder)
             toggle_loop(rba)
             return Consume()
         end
+        if ispressed(scene, Makie.Keyboard.n & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+            isnothing(rba.eventfile) || previous_event!(rba, rba.eventfile)
+            return Consume()
+        end
+        if ispressed(scene, Makie.Keyboard.n)
+            isnothing(rba.eventfile) || next_event!(rba, rba.eventfile)
+            return Consume()
+        end
         if ispressed(scene, Makie.Keyboard.b)
             if rba.simparams.darkmode_enabled
                 scene.backgroundcolor = RGBf(0.9, 0.9, 0.9)
@@ -203,18 +211,12 @@ toggle_rotation(rba::RBA) = rba.simparams.rotation_enabled = !global_rba().simpa
 toggle_loop(rba::RBA) = rba.simparams.loop_enabled = !global_rba().simparams.loop_enabled
 rotation_enabled(rba::RBA) = rba.simparams.rotation_enabled
 function next_hits_colouring(rba::RBA)
-    hidehits!(rba)
+    isempty(rba.hitsclouds) && return
     rba.simparams.hits_selector += 1
 end
 function previous_hits_colouring(rba::RBA)
-    hidehits!(rba)
+    isempty(rba.hitsclouds) && return
     rba.simparams.hits_selector -= 1
-end
-function hidehits!(rba::RBA)
-    for hitscloud in rba.hitsclouds
-        n_hits = length(hitscloud.hits)
-        hitscloud.mesh.markersize = zeros(n_hits)
-    end
 end
 
 """

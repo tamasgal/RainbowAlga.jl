@@ -10,7 +10,7 @@ makedocs(;
     sitename="RainbowAlga.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://tgal.gitlab.io/RainbowAlga.jl",
+        canonical="https://tgal.pages.km3net.de/RainbowAlga.jl",
         edit_link="main",
         assets=String[],
     ),

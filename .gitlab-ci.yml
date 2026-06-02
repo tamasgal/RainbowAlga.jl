@@ -25,6 +25,7 @@ variables:
     - |
       julia -e '
         using Pkg
+        Pkg.Registry.add("General")
         Pkg.Registry.add(RegistrySpec(url = "https://git.km3net.de/common/julia-registry"))'
 
 test:

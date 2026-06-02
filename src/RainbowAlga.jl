@@ -16,7 +16,7 @@ using ColorSchemes
 
 export add!, update!, clearhits!, recolor!, setfps!
 export save_perspective, load_perspective
-export generate_colors, select_first_hits, select_cherenkov_hits
+export generate_colors, generate_shower_colors, select_first_hits, select_cherenkov_hits
 export global_scene
 export AbstractEventFile, EventFile, load!, load_event!, next_event!, previous_event!
 

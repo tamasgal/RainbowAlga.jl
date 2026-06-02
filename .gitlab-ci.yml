@@ -57,7 +57,6 @@ docs:
     - |
       xvfb-run -a julia --project=docs -e '
         using Pkg
-        Pkg.develop(PackageSpec(path = pwd()))
         Pkg.instantiate()
         using Documenter: doctest
         using RainbowAlga

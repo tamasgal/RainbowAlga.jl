@@ -6,7 +6,10 @@ DocMeta.setdocmeta!(RainbowAlga, :DocTestSetup, :(using RainbowAlga); recursive=
 makedocs(;
     modules=[RainbowAlga],
     authors="Tamas Gal <himself@tamasgal.com> and contributors",
-    repo="https://git.km3net.de/tgal/RainbowAlga.jl/blob/{commit}{path}#{line}",
+    repo=Documenter.Remotes.URL(
+        "https://git.km3net.de/tgal/RainbowAlga.jl/blob/{commit}{path}#L{line}",
+        "https://git.km3net.de/tgal/RainbowAlga.jl",
+    ),
     sitename="RainbowAlga.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
@@ -17,4 +20,10 @@ makedocs(;
     pages=[
         "Home" => "index.md",
     ],
+)
+
+deploydocs(;
+    repo="git.km3net.de/tgal/RainbowAlga.jl",
+    devbranch="main",
+    push_preview=true,
 )

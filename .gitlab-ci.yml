@@ -1,32 +1,48 @@
 stages:
   - test
   - docs
-  - deploy
 
-before_script:
-  # workaround for https://github.com/JuliaDocs/Documenter.jl/issues/686
-  - apt-get -qq update; apt-get -y install git
-  - mkdir -p /root/.ssh && ssh-keyscan -H -t rsa git.km3net.de >> /root/.ssh/known_hosts
+variables:
+  # No GPU on CI runners: force Mesa's software rasteriser (llvmpipe).
+  LIBGL_ALWAYS_SOFTWARE: "1"
+  # Let Pkg use the system git client (more robust than libgit2 behind proxies).
+  JULIA_PKG_USE_CLI_GIT: "true"
 
-.script:
-  script:
+# Shared setup: a modern Julia plus a headless OpenGL stack (Mesa + Xvfb) so GLMakie can
+# initialise, and the KM3NeT Julia registry. This mirrors the Dockerfile; to skip the
+# per-job apt-get, build that image and point `image:` at it instead.
+.headless_julia: &headless_julia
+  image: julia:1.11-bookworm
+  before_script:
+    - apt-get -qq update
+    - |
+      DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends \
+        git ca-certificates openssh-client xvfb xauth \
+        libgl1 libglx-mesa0 libgl1-mesa-dri libglu1-mesa \
+        libxrandr2 libxinerama1 libxcursor1 libxi6 libxext6 \
+        libx11-6 libxrender1 libxfixes3 libxxf86vm1 libfontconfig1 libfreetype6
+    - mkdir -p /root/.ssh && ssh-keyscan -H -t rsa git.km3net.de >> /root/.ssh/known_hosts
     - |
       julia -e '
         using Pkg
-        Pkg.update()
+        Pkg.Registry.add("General")
         Pkg.Registry.add(RegistrySpec(url = "https://git.km3net.de/common/julia-registry"))'
-      julia --project=@. -e '
+
+test:
+  <<: *headless_julia
+  stage: test
+  coverage: '/Test coverage (\d+\.\d+%)/'
+  script:
+    # xvfb-run provides a virtual X display so GLMakie/GLFW can create a GL context.
+    - |
+      xvfb-run -a julia --project=@. -e '
         using Pkg
         Pkg.build()
-        Pkg.test(coverage=true)'
-
-.coverage:
-  coverage: /Test coverage (\d+\.\d+%)/
+        Pkg.test(coverage = true)'
   after_script:
     - |
       julia -e '
         using Pkg
-        Pkg.update()
         Pkg.Registry.add(RegistrySpec(url = "https://git.km3net.de/common/julia-registry"))
         Pkg.add("Coverage")
         using Coverage
@@ -34,28 +50,14 @@ before_script:
         using Printf
         @printf "Test coverage %.2f%%\n" 100c / t'
 
-Julia 1.9:
-  image: docker.km3net.de/base/julia:1.9-opengl
-  stage: test
-  extends:
-    - .script
-    - .coverage
-
-
 docs:
-  image: docker.km3net.de/base/julia:1.9-opengl
+  <<: *headless_julia
   stage: docs
   script:
     - |
-      julia -e '
+      xvfb-run -a julia --project=docs -e '
         using Pkg
-        Pkg.update()
-        Pkg.Registry.add(RegistrySpec(url = "https://git.km3net.de/common/julia-registry"))'
-    - |
-      julia --project=docs -e '
-        using Pkg
-        Pkg.update()
-        Pkg.develop(PackageSpec(path=pwd()))
+        Pkg.develop(PackageSpec(path = pwd()))
         Pkg.instantiate()
         using Documenter: doctest
         using RainbowAlga

@@ -169,12 +169,13 @@ per second before calling `RainbowAlga.run()`:
 julia> setfps!(10)
 ```
 
-You can also reduce the rendering cost of the geometry by skipping the detailed PMT
-rendering:
+DOMs are drawn as simple spheres by default (`simplified_doms=true`). Rendering each PMT
+individually is much more expensive on large detectors, so only enable it when you
+actually need that detail:
 
 ```julia
-julia> update!(d; simplified_doms=true)
+julia> update!(d; simplified_doms=false)   # per-PMT rendering, slower
 ```
 
-Avoid calling `add!(hits)` more often than necessary: each hits cloud adds some overhead
-to the animation loop, even when it is not the currently displayed one.
+Adding several hits clouds is cheap: they all share a single GPU mesh and only the
+currently selected one is animated, so the others add no per-frame cost.

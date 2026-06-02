@@ -1,5 +1,11 @@
 # Detector geometry rendering.
 
+"""
+    update!(detector; simplified_doms=true, dom_scaling=5, with_basegrid=true, kwargs...)
+
+Draw the geometry of `detector` (optical modules, strings, buoys and an optional base
+grid). Replaces any previously drawn detector and recentres the camera.
+"""
 function update!(rba::RBA, det::Detector; simplified_doms=true, dom_diameter=0.4, pmt_diameter=0.076, dom_scaling=5, with_basegrid=true)
     scene = rba.scene
     det_center = center(det)

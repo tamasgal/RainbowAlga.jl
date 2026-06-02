@@ -104,6 +104,12 @@ function recolor_hits_from_simparams!(rba::RBA)
     nothing
 end
 
+"""
+    clearhits!()
+
+Remove all hits clouds from the display. The detector geometry and the shared hits mesh
+are kept.
+"""
 function clearhits!(rba::RBA)
     rba.simparams.hits_selector = 0
     empty!(rba.hitsclouds)
@@ -112,6 +118,13 @@ function clearhits!(rba::RBA)
     update_colorbar!(rba)
 end
 clearhits!() = clearhits!(global_rba())
+
+"""
+    recolor!(hitscloud_idx, colors)
+
+Replace the colours of the `hitscloud_idx`-th hits cloud (one colour per hit). Combine
+with [`generate_colors`](@ref) for physics-based colourings and cycle them with the C key.
+"""
 function recolor!(rba::RBA, hitscloud_idx::Integer, colors)
     if hitscloud_idx < 1 || hitscloud_idx > length(rba.hitsclouds)
         error("No hits cloud with index $(hitscloud_idx) found. There is a total of $(length(rba.hitsclouds)) hits clouds to choose from.")

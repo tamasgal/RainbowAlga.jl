@@ -1,7 +1,7 @@
 # Event navigation and the run entrypoints.
 
 """
-Load the event at sequential index `idx` from the attached [`AbstractEventFile`] and
+Load the event at sequential index `idx` from the attached [`AbstractEventFile`](@ref) and
 replace the current hit display (and, for offline events, the reconstructed/MC tracks).
 The detector geometry and the shared hits mesh are reused.
 """
@@ -24,9 +24,19 @@ function load_event!(rba::RBA, idx::Int)
 end
 load_event!(idx::Int) = load_event!(global_rba(), idx)
 
+"""
+    next_event!()
+
+Show the next event of the currently loaded event file (bound to the `N` key).
+"""
 next_event!(rba::RBA) = load_event!(rba, rba.current_event_idx + 1)
 next_event!() = next_event!(global_rba())
 
+"""
+    previous_event!()
+
+Show the previous event of the currently loaded event file (bound to `Shift+N`).
+"""
 previous_event!(rba::RBA) = load_event!(rba, rba.current_event_idx - 1)
 previous_event!() = previous_event!(global_rba())
 
@@ -56,7 +66,7 @@ function load!(rba::RBA, f::AbstractEventFile)
 end
 
 """
-Start RainbowAlga with an [`AbstractEventFile`] (e.g. an [`EventFile`] wrapping a
+Start RainbowAlga with an [`AbstractEventFile`](@ref) (e.g. an [`EventFile`](@ref) wrapping a
 KM3NeT online or offline ROOT file). The geometry is drawn once and the first event is
 shown; N / Shift+N navigate forward/backward and E lets you jump by index.
 """

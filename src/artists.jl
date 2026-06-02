@@ -1,3 +1,10 @@
+"""
+    generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), t₀=missing, timespan=3000, cmap=ColorSchemes.matter)
+
+Compute one colour per hit relative to the `muon` track: hits compatible with the
+Cherenkov hypothesis (time residual within `cherenkov_thresholds`) are highlighted, the
+rest are coloured by arrival time. Pass the result to [`recolor!`](@ref).
+"""
 function generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), early_hit_threshold=100, t₀=missing, timespan=3000, cmap=ColorSchemes.matter)
     cphotons = cherenkov(muon, hits)
 
@@ -39,6 +46,13 @@ function generate_colors(muon, hits; cherenkov_thresholds=(-5, 25), early_hit_th
 end
 
 
+"""
+    generate_shower_colors(muon, hits, shower_distance; threshold=200)
+
+Colour the `hits` that are compatible with a secondary shower at `shower_distance`
+metres along the `muon` track (within a time `threshold`). Pass the result to
+[`recolor!`](@ref).
+"""
 # Shower locations (reference https://git.km3net.de/working_groups/dpdq/mass_production_2023/-/issues/49#note_68700):
 # 190, 295 and 450 m from the best jpp track vertex, quite close to what Aart found. Although it might be 4 showers as well at 170, 190, 290, 450 m.
 function generate_shower_colors(muon, hits, shower_distance; threshold=200)

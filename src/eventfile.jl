@@ -2,7 +2,7 @@
     EventFile(rootfile, detector; source=nothing)
     EventFile(rootfile_path, detector_or_detx_path; source=nothing)
 
-Built-in [`AbstractEventFile`] bundling a `KM3io.ROOTFile` with the `Detector` used to
+Built-in [`AbstractEventFile`](@ref) bundling a `KM3io.ROOTFile` with the `Detector` used to
 draw the geometry and (for online events) calibrate the hits.
 
 `source` selects the tree:
@@ -89,6 +89,6 @@ end
 
 """
 Convenience: start RainbowAlga directly from a `ROOTFile` and `Detector` (wraps them in
-an [`EventFile`], auto-detecting the tree).
+an [`EventFile`](@ref), auto-detecting the tree).
 """
 run(rootfile::KM3io.ROOTFile, detector::Detector; kwargs...) = run(EventFile(rootfile, detector); kwargs...)

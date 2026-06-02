@@ -81,6 +81,13 @@ get_current_cam_position() = get_current_cam_position(global_rba())
 get_current_cam_target(rba::RBA) = rba.cam.lookat.val
 get_current_cam_target() = get_current_cam_target(global_rba())
 
+"""
+    save_perspective(idx)
+    save_perspective(idx, eyeposition, lookat)
+
+Store the current camera (or an explicit `eyeposition`/`lookat`) in slot `idx` (1-9).
+Recall it with [`load_perspective`](@ref) or by pressing the corresponding number key.
+"""
 function save_perspective(rba::RBA, idx::Int)
     pos = get_current_cam_position(rba)
     target = get_current_cam_target(rba)
@@ -92,6 +99,12 @@ function save_perspective(rba::RBA, idx::Int, eyeposition, lookat)
     rba.perspectives[idx] = (eyeposition, lookat)
 end
 save_perspective(idx::Int, eyeposition, lookat) = save_perspective(global_rba(), idx::Int, eyeposition, lookat)
+
+"""
+    load_perspective(idx)
+
+Restore the camera from perspective slot `idx` (1-9), as saved by [`save_perspective`](@ref).
+"""
 function load_perspective(rba::RBA, idx::Int)
     update_cam!(rba.scene, rba.cam, rba.perspectives[idx][1], rba.perspectives[idx][2], Vec3f(0,0,1))
 end

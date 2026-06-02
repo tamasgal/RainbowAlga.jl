@@ -30,7 +30,7 @@ const KEYBINDINGS = [
     setup_help_overlay!(rba)
 
 Create the (initially hidden) keybindings overlay in pixel space, centred on the window.
-Toggle its visibility with [`toggle_help`] (bound to the H key).
+Toggle its visibility with `toggle_help` (bound to the H key).
 """
 function setup_help_overlay!(rba::RBA)
     scene = rba.scene

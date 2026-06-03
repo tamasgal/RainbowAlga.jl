@@ -42,6 +42,28 @@ otherwise its size is 0. Returns one size per hit in `cloud`.
 hit_markersizes(cloud::HitsCloud, t, scale, min_tot) =
     [(h.tot >= min_tot && t >= h.t) ? scale * sqrt(h.tot / 255) : 0.0 for h in cloud.hits]
 
+"""
+Advance the scene to simulation time `t`: upload the active hits cloud if the selection
+changed, resize the hit markers so that hits up to `t` are visible, and move every track
+(and its Cherenkov cone) to its position at `t`. Shared by the interactive render loop
+and by [`snapshot`](@ref), so both produce identical frames.
+"""
+function apply_frame!(rba::RBA, t)
+    active = active_hitscloud_index(rba)
+    if active != rba.simparams.displayed_hitscloud
+        apply_hitscloud!(rba)
+    end
+    if active != 0
+        cloud = rba.hitsclouds[active]
+        scale = 1 + rba.simparams.hit_scaling / 5
+        rba.hits_mesh.markersize[] = hit_markersizes(cloud, t, scale, rba.simparams.min_tot)
+    end
+    for track in rba.tracks
+        draw!(track, t)
+    end
+    rba
+end
+
 
 """
 
@@ -217,7 +239,8 @@ end
 function add!(rba::RBA, track::Track)
     push!(rba.tracks, track)
 end
-add!(trk::Trk; kwargs...) = add!(global_rba(), Track(global_rba().scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
+add!(rba::RBA, trk::Trk; kwargs...) = add!(rba, Track(rba.scene, trk.pos, trk.dir, KM3io.Constants.c, trk.t; kwargs...))
+add!(trk::Trk; kwargs...) = add!(global_rba(), trk; kwargs...)
 
 """
 

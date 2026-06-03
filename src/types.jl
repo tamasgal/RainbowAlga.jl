@@ -27,6 +27,19 @@ function Base.show(io::IO, h::HitsCloud)
 end
 
 
+"""
+    RBA()
+    RBA(detector::Detector)
+
+The main event-display object: a GLMakie scene together with the detector geometry, the
+particle tracks, the hit clouds, the camera and nine saved perspectives. `RBA()` builds an
+empty display; `RBA(detector)` also draws the geometry and centres the camera.
+
+Most convenience functions operate on a single global instance (see [`global_scene`](@ref)),
+but you can create and drive your own instances explicitly -- e.g. to render several views
+off-screen with [`snapshot`](@ref) -- by passing the `RBA` as the first argument to
+[`update!`](@ref), [`add!`](@ref), [`load!`](@ref) and friends.
+"""
 @kwdef mutable struct RBA
     scene::Scene = Scene(backgroundcolor=RGBf(1.0))
     # Disable all default Camera3D keyboard controls (translate r/f/a/d/w/s, zoom u/o,

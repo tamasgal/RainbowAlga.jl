@@ -84,23 +84,9 @@ function start_eventloop(rba; interactive=true)
 
         rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
 
-        t = rba.simparams.t_offset + rba.simparams.frame_idx
-
         # Single shared mesh: reconfigure positions/colours only when the selection
         # changed, then resize markers every tick to animate hits as time advances.
-        active = active_hitscloud_index(rba)
-        if active != rba.simparams.displayed_hitscloud
-            apply_hitscloud!(rba)
-        end
-        if active != 0
-            cloud = rba.hitsclouds[active]
-            scale = 1 + rba.simparams.hit_scaling / 5
-            rba.hits_mesh.markersize[] = hit_markersizes(cloud, t, scale, rba.simparams.min_tot)
-        end
-
-        for track ∈ rba.tracks
-            draw!(track, t)
-        end
+        apply_frame!(rba, rba.simparams.t_offset + rba.simparams.frame_idx)
 
         update_infotext!(rba)
 

@@ -16,11 +16,11 @@ using Test
     @test all(kb -> kb isa Tuple{String,String}, RainbowAlga.KEYBINDINGS)
 
     # Public API surface is present.
-    for sym in (:add!, :update!, :clearhits!, :recolor!, :setfps!, :save_perspective,
-                :load_perspective, :generate_colors, :generate_shower_colors,
-                :select_first_hits, :select_cherenkov_hits, :global_scene, :annotate!,
-                :AbstractEventFile, :EventFile, :load!, :load_event!,
-                :next_event!, :previous_event!)
+    for sym in (:RBA, :add!, :update!, :clearhits!, :recolor!, :setfps!, :snapshot,
+                :save_perspective, :load_perspective, :generate_colors,
+                :generate_shower_colors, :select_first_hits, :select_cherenkov_hits,
+                :global_scene, :annotate!, :AbstractEventFile, :EventFile, :load!,
+                :load_event!, :next_event!, :previous_event!)
         @test isdefined(RainbowAlga, sym)
     end
 
@@ -37,4 +37,20 @@ using Test
     @test length(rba.scene.plots) == n0
     delete!(s)  # deleting twice is a no-op
     @test length(rba.scene.plots) == n0
+
+    # End-to-end: load the bundled KM3-230213A event and render it off-screen. This also
+    # validates the bundled data files and exercises the full GLMakie render path that the
+    # documentation relies on (headless via Xvfb on CI).
+    datadir = joinpath(pkgdir(RainbowAlga), "data", "uhe-event")
+    f = EventFile(joinpath(datadir, "KM3-230213A_allhits.root"),
+                  joinpath(datadir, "detector.dynamical.datx"))
+    erba = RBA()
+    load!(erba, f)
+    @test !isempty(erba.hitsclouds)   # hits cloud(s)
+    @test !isempty(erba.tracks)       # reconstructed muon
+    mktempdir() do dir
+        out = joinpath(dir, "event.png")
+        @test snapshot(erba, out; size = (320, 240), time = 2000) == out
+        @test isfile(out) && filesize(out) > 0
+    end
 end

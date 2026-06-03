@@ -23,12 +23,18 @@ Supported shapes are `:Sphere`, `:Cube` (alias `:Box`) and `:Cylinder`. `size` i
 radius (sphere/cylinder) or half-side (cube) in detector units. Any extra keyword
 arguments are forwarded to the underlying Makie `mesh!` / `text!` call.
 
+Use `alpha` (between `0` and `1`) for transparent primitives; add `transparency=true` for
+correct rendering when several transparent objects overlap. Text takes no `alpha`, so pass
+a transparent colour directly, e.g. `color=(:black, 0.5)`.
+
 # Examples
 ```julia
 mysphere = annotate!(Point3f(32, 1, 56), :Sphere; size=8, color=:gold)
 delete!(mysphere)
 
-annotate!(Point3f(0, 0, 700), "North"; fontsize=30)
+annotate!(Point3f(32, 1, 56), :Sphere; size=8, color=:gold, alpha=0.3, transparency=true)
+
+annotate!(Point3f(0, 0, 700), "North"; fontsize=30, color=(:black, 0.5))
 ```
 """
 annotate!(position, shape = :Sphere; kwargs...) = annotate!(global_scene(), position, shape; kwargs...)

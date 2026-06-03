@@ -72,6 +72,20 @@ delete!(mysphere)
 annotate!((0, 0, 700), "North"; fontsize = 30)
 ```
 
+Primitives can be made transparent with the `alpha` keyword (`0` fully transparent, `1`
+fully opaque). For correct see-through when several transparent objects overlap, also
+pass `transparency = true`, which is forwarded to Makie:
+
+```julia
+annotate!((32, 1, 56), :Sphere; size = 8, color = :gold, alpha = 0.3, transparency = true)
+```
+
+Text labels take no `alpha` keyword, but you can pass a transparent colour directly:
+
+```julia
+annotate!((0, 0, 700), "North"; fontsize = 30, color = (:black, 0.5))
+```
+
 See [`annotate!`](@ref); the global scene is reachable with [`global_scene`](@ref) if you
 want to draw with Makie directly.
 

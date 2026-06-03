@@ -14,7 +14,7 @@ using Colors
 using Colors: N0f8
 using ColorSchemes
 
-export add!, update!, clearhits!, recolor!, setfps!
+export RBA, add!, update!, clearhits!, recolor!, setfps!, snapshot
 export save_perspective, load_perspective
 export generate_colors, generate_shower_colors, select_first_hits, select_cherenkov_hits
 export global_scene, annotate!
@@ -39,5 +39,6 @@ include("interactivity.jl")# keyboard + control functions
 include("artists.jl")      # colour schemes
 include("utils.jl")        # hit selection helpers
 include("annotations.jl")  # user-added scene primitives
+include("snapshot.jl")     # off-screen static rendering
 
 end  # module

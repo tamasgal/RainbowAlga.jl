@@ -9,6 +9,31 @@ display for water/ice Cherenkov neutrino telescopes (KM3NeT). It renders the det
 geometry, particle tracks with their Cherenkov cones and photon hit clouds in real time
 using [GLMakie](https://docs.makie.org/stable/explanations/backends/glmakie/).
 
+```@setup hero
+using RainbowAlga, KM3io, ColorSchemes
+datadir = joinpath(pkgdir(RainbowAlga), "data", "uhe-event")
+detector = Detector(joinpath(datadir, "detector.dynamical.datx"))
+event = first(ROOTFile(joinpath(datadir, "KM3-230213A_allhits.root")).offline)
+muon = bestjppmuon(event)
+hits = select_first_hits(event.hits; n = 5, maxtot = 256)
+rba = RBA()
+update!(rba, detector)
+add!(rba, hits; hit_distance = 3)
+add!(rba, muon)
+t₀ = muon.t + 800
+recolor!(rba, 1, generate_colors(muon, hits; cherenkov_thresholds = (-5, 25),
+                                 t₀ = t₀, timespan = 1800, cmap = ColorSchemes.thermal))
+rba.simparams.t_offset = t₀
+snapshot(rba, "uhe_hero.png"; size = (1200, 800), hit_scaling = 10, time = 1800,
+         eyeposition = (391.5, 1411.7, 1127.7), lookat = (73.0, 323.8, 380.1))
+```
+
+![The ultra-high-energy neutrino event KM3-230213A in KM3NeT/ARCA](uhe_hero.png)
+
+The figure above is the real KM3NeT open-data event **KM3-230213A**, rendered by the code
+in [The KM3-230213A ultra-high-energy event](@ref) -- and produced at documentation build
+time on a headless machine, straight from the bundled data.
+
 ## Installation
 
 ```julia
@@ -60,6 +85,19 @@ RainbowAlga.run()
 
 Apply custom, physics-based colourings with [`recolor!`](@ref) and
 [`generate_colors`](@ref), then cycle through them with the `C` key.
+
+### Saving figures
+
+To render a scene to an image file without opening a window -- in a script, or on a
+headless machine under `xvfb-run` -- use [`snapshot`](@ref) instead of [`run`](@ref). It
+freezes the animation at a chosen time, optionally points the camera and writes a PNG:
+
+```julia
+snapshot(rba, "event.png"; size = (1200, 900), time = 1800,
+         eyeposition = (391.5, 1411.7, 1127.7), lookat = (73.0, 323.8, 380.1))
+```
+
+See [The KM3-230213A ultra-high-energy event](@ref) for a complete, rendered walkthrough.
 
 ## Annotations
 

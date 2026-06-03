@@ -2,6 +2,7 @@ module RainbowAlga
 
 using Printf
 using LinearAlgebra
+using Dates
 
 using KM3io
 
@@ -19,6 +20,7 @@ export save_perspective, load_perspective
 export generate_colors, generate_shower_colors, select_first_hits, select_cherenkov_hits
 export global_scene, annotate!
 export AbstractEventFile, EventFile, load!, load_event!, next_event!, previous_event!
+export SummarysliceFile, load_summaryslices!
 
 # Load order matters: interfaces and structs (tracks, types) must come before the RBA
 # methods that operate on them, and runtime.jl (which holds a typed RBA reference) after.
@@ -35,6 +37,7 @@ include("colorbar.jl")     # interactive colorbar
 include("help.jl")         # keybindings overlay
 include("app.jl")          # infobox, render loop
 include("eventfile.jl")    # EventFile (online/offline)
+include("summaryslices.jl")# summaryslice rate-field mode
 include("interactivity.jl")# keyboard + control functions
 include("artists.jl")      # colour schemes
 include("utils.jl")        # hit selection helpers

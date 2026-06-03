@@ -118,13 +118,21 @@ function register_events(rba::RBA, screen, recorder)
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.left)
-            rba.simparams.loop_enabled = false
-            rba.simparams.frame_idx -= 200
+            if rba.simparams.animation_mode === :summaryslice
+                step_slice!(rba, -1)
+            else
+                rba.simparams.loop_enabled = false
+                rba.simparams.frame_idx -= 200
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.right)
-            rba.simparams.loop_enabled = false
-            rba.simparams.frame_idx += 200
+            if rba.simparams.animation_mode === :summaryslice
+                step_slice!(rba, 1)
+            else
+                rba.simparams.loop_enabled = false
+                rba.simparams.frame_idx += 200
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.o)
@@ -204,11 +212,19 @@ function register_events(rba::RBA, screen, recorder)
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.c & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
-            previous_hits_colouring(rba)
+            if rba.simparams.animation_mode === :summaryslice
+                cycle_colorscheme!(rba, -1)
+            else
+                previous_hits_colouring(rba)
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.c)
-            next_hits_colouring(rba)
+            if rba.simparams.animation_mode === :summaryslice
+                cycle_colorscheme!(rba, 1)
+            else
+                next_hits_colouring(rba)
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.p)
@@ -278,17 +294,65 @@ function register_events(rba::RBA, screen, recorder)
             increasetot(rba, 0.5)
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.equal)  # "=" / "+": larger hits
-            rba.simparams.hit_scaling += 1
+        if ispressed(scene, Makie.Keyboard.equal)  # "=" / "+": larger markers
+            if rba.simparams.animation_mode === :summaryslice
+                scale_marker_size!(rba, 1.15)
+            else
+                rba.simparams.hit_scaling += 1
+            end
             return Consume()
         end
-        if ispressed(scene, Makie.Keyboard.minus)  # "-": smaller hits
-            rba.simparams.hit_scaling > 1 && (rba.simparams.hit_scaling -= 1)
+        if ispressed(scene, Makie.Keyboard.minus)  # "-": smaller markers
+            if rba.simparams.animation_mode === :summaryslice
+                scale_marker_size!(rba, 1/1.15)
+            else
+                rba.simparams.hit_scaling > 1 && (rba.simparams.hit_scaling -= 1)
+            end
             return Consume()
         end
         if ispressed(scene, Makie.Keyboard.h)  # toggle the keybindings overlay
             toggle_help(rba)
             return Consume()
+        end
+
+        # Summaryslice display toggles (only active in summaryslice mode)
+        if rba.simparams.animation_mode === :summaryslice && !isnothing(rba.summaryslices)
+            if ispressed(scene, Makie.Keyboard.g)
+                toggle_granularity!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.k)
+                toggle_color_scale!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.r)
+                toggle_size_mode!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.u)
+                toggle_hrv_highlight!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.i)
+                toggle_fifo_highlight!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.y)
+                toggle_hide_nodata!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.s)
+                toggle_smoothing!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.left_bracket)
+                change_smoothing_window!(rba, -2)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.right_bracket)
+                change_smoothing_window!(rba, 2)
+                return Consume()
+            end
         end
         if !isnothing(rba.eventfile)
             if ispressed(scene, Makie.Keyboard.n & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
@@ -350,7 +414,9 @@ function register_colorbar_events(rba::RBA)
                     # Double click: reset to defaults
                     dragging[] = false
                     last_click_time[] = 0.0
-                    if haskey(rba._colorbar, "default_loop_end_frame_idx")
+                    if rba.simparams.animation_mode === :summaryslice
+                        reset_rate_bounds!(rba)
+                    elseif haskey(rba._colorbar, "default_loop_end_frame_idx")
                         rba.simparams.cb_t_offset = 0.0
                         rba.simparams.loop_end_frame_idx = rba._colorbar["default_loop_end_frame_idx"]
                         update_colorbar!(rba)
@@ -376,6 +442,13 @@ function register_colorbar_events(rba::RBA)
         delta = mpos - last_pos[]
         last_pos[] = mpos
 
+        if rba.simparams.animation_mode === :summaryslice
+            # Right-drag adjusts the rate colour scale: horizontal expands/shrinks the
+            # rate range, vertical shifts it to higher/lower rates.
+            adjust_rate_bounds!(rba, delta[1], delta[2], cb_h)
+            return Consume()
+        end
+
         Δt = Float64(rba.simparams.loop_end_frame_idx)
 
         # Horizontal: right = expand window, left = shrink (proportional to current Δt)
@@ -399,6 +472,9 @@ end
 # Control functions to steer the 3D simulation
 isstopped(rba::RBA) = rba.simparams.stopped
 reset_time(rba::RBA) = rba.simparams.frame_idx = 0
+# Step the summaryslice cursor by `n` slices, clamped to the available range.
+step_slice!(rba::RBA, n::Int) =
+    rba.simparams.frame_idx = clamp(rba.simparams.frame_idx + n, 0, rba.simparams.loop_end_frame_idx)
 faster(rba::RBA, n::Int) = rba.simparams.speed += n
 slower(rba::RBA, n::Int) = rba.simparams.speed -= n
 increasetot(rba::RBA, t::Float64) = rba.simparams.min_tot += t

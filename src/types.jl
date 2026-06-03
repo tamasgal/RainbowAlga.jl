@@ -65,8 +65,12 @@ off-screen with [`snapshot`](@ref) -- by passing the `RBA` as the first argument
     # A single shared mesh holds all hits; it is reconfigured (positions/colours/sizes)
     # from the selected cloud instead of allocating a mesh per cloud or per event.
     hits_mesh::MeshScatter{Tuple{Vector{Point{3, Float32}}}} = meshscatter!(scene, Point3f[], color = RGBAf[], markersize = Float64[])
+    # A second shared mesh holds the summaryslice rate field (per-PMT or per-DOM); it stays
+    # empty (invisible) in the default time-animation mode.
+    rate_mesh::MeshScatter{Tuple{Vector{Point{3, Float32}}}} = meshscatter!(scene, Point3f[], color = RGBAf[], markersize = Float64[])
     _plots::Dict{String, Any} = Dict()
     eventfile::Union{Nothing, AbstractEventFile} = nothing
+    summaryslices::Union{Nothing, AbstractSummarysliceView} = nothing
     current_event_idx::Int = 0
     current_frame_index::Int = 0
     current_trigger_counter::Int = 0

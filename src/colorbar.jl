@@ -73,6 +73,10 @@ Update the colorbar to reflect the currently selected hits cloud.
 function update_colorbar!(rba::RBA)
     haskey(rba._colorbar, "visible") || return
 
+    if rba.simparams.animation_mode === :summaryslice
+        return update_rate_colorbar!(rba)
+    end
+
     cbar_visible = rba._colorbar["visible"]
     cbar_colors = rba._colorbar["colors"]
     cbar_ticks_text = rba._colorbar["ticks_text"]
@@ -135,6 +139,81 @@ function update_colorbar!(rba::RBA)
         frac = (tv - t_rel_start) / Δt
         new_positions[j] = Point2f(tick_x, cb_y + frac * cb_h)
         new_texts[j] = @sprintf("%.0f", tv)
+    end
+    cbar_tick_positions[] = new_positions
+    cbar_ticks_text[] = new_texts
+
+    cbar_visible[] = true
+    nothing
+end
+
+# Compact label for a rate in Hz (e.g. "100 kHz", "2.0 MHz").
+ratelabel(hz) = hz >= 1e6 ? @sprintf("%.1f MHz", hz/1e6) :
+                hz >= 1e3 ? @sprintf("%.0f kHz", hz/1e3) :
+                @sprintf("%.0f Hz", hz)
+
+"""
+Update the colorbar for the summaryslice rate field: map the configured colour scheme over
+the rate range on a log or linear scale, with rate (Hz) tick labels. Called from
+[`update_colorbar!`](@ref) when the animation mode is `:summaryslice`.
+"""
+function update_rate_colorbar!(rba::RBA)
+    haskey(rba._colorbar, "visible") || return
+    cbar_visible = rba._colorbar["visible"]
+    d = rba.summaryslices
+    if isnothing(d)
+        cbar_visible[] = false
+        return
+    end
+
+    cbar_colors = rba._colorbar["colors"]
+    cbar_ticks_text = rba._colorbar["ticks_text"]
+    cbar_tick_positions = rba._colorbar["tick_positions"]
+    cb_x = rba._colorbar["cb_x"][]
+    cb_w = rba._colorbar["cb_w"]
+    cb_y = rba._colorbar["cb_y"][]
+    cb_h = rba._colorbar["cb_h"]
+    title_plot = rba._colorbar["title_plot"]
+
+    n = size(cbar_colors[], 2)
+    n_ticks_max = length(cbar_ticks_text[])
+
+    cmap = try
+        getproperty(ColorSchemes, d.colorscheme)
+    catch
+        cbar_visible[] = false
+        return
+    end
+
+    new_colors = Matrix{RGBAf}(undef, 1, n)
+    for i in 1:n
+        c = cmap[(i - 1) / (n - 1)]
+        new_colors[1, i] = RGBAf(c.r, c.g, c.b, 1.0)
+    end
+    cbar_colors[] = new_colors
+    title_plot.text = d.color_scale === :log ? "rate / Hz (log)" : "rate / Hz"
+
+    rmin, rmax = d.rate_min, d.rate_max
+    # Log scale: the two endpoints plus every interior power of ten, so the labels track
+    # an interactively adjusted range. Linear scale: evenly spaced.
+    ticks = if d.color_scale === :log
+        decades = [10.0^e for e in ceil(Int, log10(rmin)):floor(Int, log10(rmax))]
+        sort(unique([rmin; decades; rmax]))
+    else
+        collect(range(rmin, rmax; length=6))
+    end
+    tick_x = Float32(cb_x + cb_w + 5)
+    new_positions = fill(Point2f(0, 0), n_ticks_max)
+    new_texts = fill("", n_ticks_max)
+    j = 0
+    for tv in ticks
+        (tv < rmin || tv > rmax) && continue
+        j += 1
+        j > n_ticks_max && break
+        frac = d.color_scale === :log ? (log(tv) - log(rmin)) / (log(rmax) - log(rmin)) :
+               (tv - rmin) / (rmax - rmin)
+        new_positions[j] = Point2f(tick_x, cb_y + clamp(frac, 0.0, 1.0) * cb_h)
+        new_texts[j] = ratelabel(tv)
     end
     cbar_tick_positions[] = new_positions
     cbar_ticks_text[] = new_texts

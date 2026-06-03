@@ -75,7 +75,7 @@ end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")
 
 function RBA(detector::Detector; kwargs...)
-    rba = RBA(kwargs...)
+    rba = RBA(; kwargs...)
 
     update!(rba, detector)
     center!(rba.scene)

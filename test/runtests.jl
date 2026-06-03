@@ -50,7 +50,12 @@ using Test
     @test !isempty(erba.tracks)       # reconstructed muon
     mktempdir() do dir
         out = joinpath(dir, "event.png")
-        @test snapshot(erba, out; size = (320, 240), time = 2000) == out
+        # The temporary hit_scaling/min_tot overrides must be restored afterwards.
+        hs0, mt0 = erba.simparams.hit_scaling, erba.simparams.min_tot
+        @test snapshot(erba, out; size = (320, 240), time = 2000,
+                       hit_scaling = hs0 + 7, min_tot = mt0 + 1.0) == out
         @test isfile(out) && filesize(out) > 0
+        @test erba.simparams.hit_scaling == hs0
+        @test erba.simparams.min_tot == mt0
     end
 end

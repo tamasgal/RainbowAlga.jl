@@ -7,7 +7,8 @@ CurrentModule = RainbowAlga
 RainbowAlga ships with one real KM3NeT open-data event so you can produce a physically
 meaningful display without hunting for data first. **KM3-230213A** is the
 ultra-high-energy neutrino detected by KM3NeT/ARCA on 2023-02-13, with a reconstructed
-muon energy in the ~100 PeV range; it is described in
+muon energy of about 120 PeV (corresponding to an inferred neutrino energy of around
+220 PeV); it is described in
 [*Observation of an ultra-high-energy cosmic neutrino with KM3NeT*](https://www.nature.com/articles/s41586-024-08543-1)
 (Nature **638**, 376-382, 2025).
 

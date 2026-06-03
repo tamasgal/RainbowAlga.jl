@@ -14,8 +14,8 @@ meaningful event out of the box.
 ## The event
 
 KM3-230213A is the ultra-high-energy neutrino event detected by KM3NeT/ARCA on
-2023-02-13 at 01:16:47 UTC, with a reconstructed muon energy in the ~100 PeV range. It
-is described in
+2023-02-13 at 01:16:47 UTC, with a reconstructed muon energy of about 120 PeV
+(corresponding to an inferred neutrino energy of around 220 PeV). It is described in
 
 > The KM3NeT Collaboration, *Observation of an ultra-high-energy cosmic neutrino with
 > KM3NeT*, Nature 638, 376-382 (2025).

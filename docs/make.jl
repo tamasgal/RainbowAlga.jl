@@ -20,6 +20,7 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "The KM3-230213A event" => "uhe-event.md",
+        "Summaryslices" => "summaryslices.md",
     ],
 )
 

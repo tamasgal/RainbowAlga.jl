@@ -66,6 +66,20 @@ Step through events with `N` / `Shift+N`, or from the REPL with [`next_event!`](
 To plug in your own event source, derive from [`AbstractEventFile`](@ref) and implement
 its interface (`geometry`, `nevents`, `eventsample`).
 
+### Animating summaryslices
+
+Online files also carry **summaryslices** -- per-PMT count rates over 100 ms windows.
+RainbowAlga can animate these as a rate field over the whole detector, stepping by
+summaryslice `frame_index` instead of nanosecond time. Wrap the file in a
+[`SummarysliceFile`](@ref) and hand it to [`run`](@ref):
+
+```julia
+run(SummarysliceFile("path/to/online.root", "path/to/detector.detx"))
+```
+
+See [Summaryslices: animating detector rate fields](@ref) for the full walkthrough,
+configuration options and keybindings.
+
 ### Building a display by hand
 
 You can also assemble a scene from calibrated hits and tracks directly:
@@ -143,6 +157,9 @@ Press `H` inside the window to toggle an overlay listing every binding. The most
 | `1`-`9` / `Shift+1`-`9` | load / save camera perspective |
 | `p` / `v` | screenshot / video recording |
 | `h` | toggle the help overlay |
+
+In summaryslice mode the keys `g`, `k`, `r`, `u`, `i`, `y`, `s` and `[` / `]` configure the
+rate field; see [Summaryslices: animating detector rate fields](@ref).
 
 ## API reference
 

@@ -258,7 +258,7 @@ end
 Repaint the shared `rate_mesh` for summaryslice `ordinal` (0-based, clamped to the file).
 Mirrors [`apply_frame!`](@ref) for the time-animation mode: positions are only re-uploaded
 when the granularity changes, colours and sizes every call. When smoothing is enabled the
-rates are averaged over a window of slices (see [`current_field`](@ref)).
+rates are averaged over a window of slices (see `current_field`).
 """
 function apply_slice!(rba::RBA, ordinal::Integer)
     d = rba.summaryslices
@@ -356,8 +356,8 @@ function change_smoothing_window!(rba::RBA, delta::Int)
 end
 
 """
-Reset the rate colour scale to the default limits ([`DEFAULT_RATE_MIN_HZ`],
-[`DEFAULT_RATE_MAX_HZ`]). Bound to a double right-click on the colorbar, mirroring the
+Reset the rate colour scale to the default limits (`DEFAULT_RATE_MIN_HZ`,
+`DEFAULT_RATE_MAX_HZ`). Bound to a double right-click on the colorbar, mirroring the
 time-window reset in event mode.
 """
 function reset_rate_bounds!(rba::RBA)

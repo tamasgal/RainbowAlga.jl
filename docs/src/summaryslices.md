@@ -40,10 +40,12 @@ to an existing display without opening a window (e.g. for [`snapshot`](@ref)), u
 ## The per-PMT rate field
 
 By default each of the (up to 31) PMTs of every optical module is drawn as a point at its
-position on the module, coloured by its rate. The colour scale is logarithmic over a range
-tuned for typical single-PMT rates (2-20 kHz), and the marker size grows with the rate, so
-hot channels stand out. PMTs flagged in high-rate veto are highlighted (red by default) and
-those with an almost-full FIFO in orange.
+position on the module, coloured by its rate on a linear scale. When the file is opened the
+colour range is auto-calibrated from the data so that ordinary rate variations spread across
+the whole colormap instead of collapsing into one colour (see [Rate scales](@ref)); press
+`k` to switch to a logarithmic scale. The marker size grows with the rate, so hot channels
+stand out. PMTs flagged in high-rate veto are highlighted (red by default) and those with an
+almost-full FIFO in orange.
 
 ```@example summaryslices
 using RainbowAlga, KM3io
@@ -54,7 +56,7 @@ sf = SummarysliceFile(joinpath(datadir, "KM3-230213A_allhits.root"),
 
 rba = RBA()
 load_summaryslices!(rba, sf)          # draw the detector and show the first slice
-rba.summaryslices.size_scale = 1.4    # marker size for the still image
+rba.summaryslices.size_scale = 0.7    # marker size for the still image
 
 snapshot(rba, "ss_pmt.png"; size = (1000, 750), time = 0,
          eyeposition = (486, 1364, 937), lookat = (73, 328, 374))
@@ -70,11 +72,12 @@ points are PMTs in high-rate veto.
 ## Per-DOM aggregate
 
 For a detector-wide overview you can collapse each optical module to a single sphere
-coloured by the **mean** of its 31 PMT rates. Toggle it interactively with the `g` key, or
-set the granularity directly:
+coloured by its **total** count rate -- the sum of its 31 PMT rates, so a module sits about
+31 times higher than a single PMT (a few hundred kHz). Toggle it interactively with the `g`
+key, or set the granularity directly:
 
 ```@example summaryslices
-rba.summaryslices.granularity = :dom   # one sphere per module (mean PMT rate)
+rba.summaryslices.granularity = :dom   # one sphere per module (total module rate)
 rba.summaryslices.size_scale = 1.6
 snapshot(rba, "ss_dom.png"; size = (1000, 750), time = 0,
          eyeposition = (486, 1364, 937), lookat = (73, 328, 374))
@@ -83,9 +86,37 @@ nothing # hide
 
 ![The per-DOM aggregate rate field](ss_dom.png)
 
-The same rate colour scale serves both views, because the per-DOM value is a mean of the
-per-PMT rates. Modules in HRV (red) or with an almost-full FIFO (orange) are flagged, and
-modules absent from a slice are hidden (or dimmed -- see below).
+The per-DOM view carries its **own** colour scale: a module total sits about 31 times above a
+single PMT, so it is calibrated separately (see [Rate scales](@ref)) and switching
+granularity swaps the colour bar with it. Modules in HRV (red) or with an
+almost-full FIFO (orange) are flagged, and modules absent from a slice are hidden (or dimmed
+-- see below).
+
+## Rate scales
+
+Single-PMT rates at KM3NeT depths (about 2.5-3.5 km in the Mediterranean) sit at a few kHz,
+but the exact level depends on the site and the sea state, so no fixed colour range fits
+every file. Instead, when a file is opened RainbowAlga samples up to ten summaryslices spread
+across it and derives the colour limits from the spread of the rates it observes -- the 5th
+to 95th percentile -- **once for the single-PMT rates and once for the per-module total
+rates** (the sum of a module's 31 PMTs, hence roughly 31 times higher). The two views
+therefore carry independent, data-tuned scales
+([`calibrate_rate_scales!`](@ref)), reachable as `rba.summaryslices.pmt_scale` and
+`rba.summaryslices.dom_scale`, and switching granularity (`g`) swaps the colour bar with the
+view.
+
+You can pin either scale -- or both -- and set the sample size when opening the file:
+
+```julia
+load_summaryslices!(rba, sf;
+                    pmt_rate = (4000, 9000),       # per-PMT colour limits in Hz
+                    dom_rate = (150000, 250000),   # per-DOM (total) colour limits in Hz
+                    calibration_slices = 20)       # slices sampled for calibration (default 10)
+```
+
+The active scale can also be changed at any time by mutating its `min` / `max`, or
+interactively by dragging the colour bar with the right mouse button; a double-click resets
+it to the auto-calibrated baseline for the current view.
 
 ## Configuring the display
 
@@ -95,13 +126,13 @@ Every cue is independently configurable, either through keyword arguments to
 ```julia
 load_summaryslices!(rba, sf;
                     granularity = :dom,   # :pmt | :dom
-                    color_scale = :lin,   # :log | :lin
+                    color_scale = :log,   # :lin | :log
                     size_mode   = :fixed, # :fixed | :rate
                     show_hrv    = false,
                     show_fifo   = false,
                     hide_nodata = false,
-                    smoothing   = true,
-                    smoothing_window = 9)
+                    smoothing   = false,  # on by default
+                    smoothing_window = 10) # slices averaged (the default)
 ```
 
 ... by mutating the fields of `rba.summaryslices` at any time, or interactively with the
@@ -114,7 +145,7 @@ keyboard:
 | `Up` / `Down` | faster / slower (slices per tick) |
 | `0` | reset to the first slice |
 | `g` | toggle PMT / DOM granularity |
-| `k` | toggle logarithmic / linear rate scale |
+| `k` | toggle linear / logarithmic rate scale |
 | `r` | toggle fixed / rate-scaled marker size |
 | `u` | toggle HRV highlighting |
 | `i` | toggle FIFO highlighting |
@@ -124,22 +155,23 @@ keyboard:
 | `c` / `Shift+c` | next / previous colour scheme |
 | `-` / `=` | smaller / larger markers |
 
-A rate colour bar is shown on the right edge of the window. As with the event time
-window, you can **adjust it with the right mouse button**: drag horizontally to widen or
-narrow the rate range, vertically to shift it to higher or lower rates, and double-click to
-reset it to the default limits.
+A rate colour bar is shown on the right edge of the window and reflects the active view's
+scale. As with the event time window, you can **adjust it with the right mouse button**: drag
+horizontally to widen or narrow the rate range, vertically to shift it to higher or lower
+rates, and double-click to reset it to the auto-calibrated baseline for the current view.
 
 ## Smoothing: suppressing outliers
 
 A single noisy slice -- a brief bioluminescence flash or a readout glitch -- can dominate
 one frame. Smoothing replaces each PMT/DOM rate with its average over a centred window of
 slices, so transient spikes are diluted across the window while sustained activity remains.
-Toggle it with the `s` key and size the window with `[` / `]` (or set `smoothing` /
+It is **on by default** over a 10-slice window (~1 s); turn it off with the `s` key to see
+instantaneous rates, and size the window with `[` / `]` (or set `smoothing` /
 `smoothing_window` up front):
 
 ```julia
-rba.summaryslices.smoothing = true
-rba.summaryslices.smoothing_window = 9   # average over 9 slices (~0.9 s), centred
+rba.summaryslices.smoothing = false      # show instantaneous, unsmoothed rates
+rba.summaryslices.smoothing_window = 23   # or change the window (default 10 slices)
 ```
 
 Only the rate magnitude is smoothed; the HRV/FIFO flags stay instantaneous (read from the

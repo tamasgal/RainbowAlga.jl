@@ -147,10 +147,29 @@ function update_colorbar!(rba::RBA)
     nothing
 end
 
-# Compact label for a rate in Hz (e.g. "100 kHz", "2.0 MHz").
+# Compact label for a rate in Hz (e.g. "100 kHz", "6.5 kHz", "2.0 MHz"). Sub-kHz steps in
+# the kHz range keep one decimal so neighbouring linear ticks do not collapse to one label.
 ratelabel(hz) = hz >= 1e6 ? @sprintf("%.1f MHz", hz/1e6) :
-                hz >= 1e3 ? @sprintf("%.0f kHz", hz/1e3) :
+                hz >= 1e3 ? (hz/1e3 == round(hz/1e3) ? @sprintf("%.0f kHz", hz/1e3) :
+                                                        @sprintf("%.1f kHz", hz/1e3)) :
                 @sprintf("%.0f Hz", hz)
+
+# Round tick values inside [lo, hi] on a "nice" 1/2/5 x 10^k step (about `count` ticks), so a
+# data-derived linear rate range still gets clean, evenly spaced labels.
+function nice_linear_ticks(lo, hi; count=6)
+    hi <= lo && return [float(lo)]
+    raw = (hi - lo) / (count - 1)
+    mag = 10.0^floor(log10(raw))
+    norm = raw / mag
+    step = (norm < 1.5 ? 1.0 : norm < 3.0 ? 2.0 : norm < 7.0 ? 5.0 : 10.0) * mag
+    ticks = Float64[]
+    t = ceil(lo / step) * step
+    while t <= hi + step * 1e-6
+        push!(ticks, t)
+        t += step
+    end
+    ticks
+end
 
 """
 Update the colorbar for the summaryslice rate field: map the configured colour scheme over
@@ -193,14 +212,15 @@ function update_rate_colorbar!(rba::RBA)
     cbar_colors[] = new_colors
     title_plot.text = d.color_scale === :log ? "rate / Hz (log)" : "rate / Hz"
 
-    rmin, rmax = d.rate_min, d.rate_max
+    sc = active_scale(d)
+    rmin, rmax = sc.min, sc.max
     # Log scale: the two endpoints plus every interior power of ten, so the labels track
-    # an interactively adjusted range. Linear scale: evenly spaced.
+    # an interactively adjusted range. Linear scale: round "nice" steps for clean labels.
     ticks = if d.color_scale === :log
         decades = [10.0^e for e in ceil(Int, log10(rmin)):floor(Int, log10(rmax))]
         sort(unique([rmin; decades; rmax]))
     else
-        collect(range(rmin, rmax; length=6))
+        nice_linear_ticks(rmin, rmax)
     end
     tick_x = Float32(cb_x + cb_w + 5)
     new_positions = fill(Point2f(0, 0), n_ticks_max)

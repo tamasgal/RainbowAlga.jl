@@ -70,12 +70,33 @@ function build_rate_geometry(det::Detector; dom_diameter=0.4, pmt_diameter=0.076
     RateGeometry(pmt_positions, pmt_channels, pmt_dom_ranges, dom_positions, dom_index)
 end
 
-# Default rate colorbar limits. KM3io can encode 2 kHz - 2 MHz, but a typical single-PMT
-# rate is dominated by K40 (a few kHz) plus bioluminescence, so the full range squashes
-# everything into the bottom of the colormap. These tighter defaults give the PMT view good
-# contrast; the right-mouse colorbar drag widens/shifts them and double-click resets here.
-const DEFAULT_RATE_MIN_HZ = 2.0e3   # 2 kHz
-const DEFAULT_RATE_MAX_HZ = 2.0e4   # 20 kHz
+# Fallback rate colorbar limits, used before the per-view scales are auto-calibrated from the
+# data (see `calibrate_rate_scales!`) or when a file has no decodable rates. Single-PMT rates
+# at KM3NeT depths sit at a few kHz, so these bracket that band; on load they are normally
+# replaced by data-derived, per-granularity limits.
+const DEFAULT_RATE_MIN_HZ = 5.0e3   # 5 kHz
+const DEFAULT_RATE_MAX_HZ = 7.5e3   # 7.5 kHz
+
+"""
+A rate colour window for one granularity (per-PMT or per-DOM). `min`/`max` are the current
+limits used for colouring and the colour bar; `default_min`/`default_max` remember the
+auto-calibrated baseline that a colour-bar double-click resets to. The two views keep
+independent scales (`RBA.summaryslices.pmt_scale` / `.dom_scale`) because their rate bands
+differ: a per-DOM total is the sum of its 31 PMT rates, so it sits about 31x above (a few
+hundred kHz) a single PMT. `min` is kept strictly positive so the logarithmic scale never
+sees a zero.
+"""
+mutable struct RateScale
+    min::Float64
+    max::Float64
+    default_min::Float64
+    default_max::Float64
+end
+function RateScale(lo, hi)
+    lo = max(Float64(lo), 1.0)        # strictly positive: the log scale uses log(min)
+    hi = max(Float64(hi), lo + 1.0)
+    RateScale(lo, hi, lo, hi)
+end
 
 """
 All runtime-configurable state of the summaryslice display. Held by `RBA.summaryslices`.
@@ -88,20 +109,21 @@ Base.@kwdef mutable struct SummarysliceDisplay <: AbstractSummarysliceView
     geom::RateGeometry
     granularity::Symbol = :pmt          # :pmt | :dom               (G)
     applied_granularity::Symbol = :none # which positions are on the mesh
-    color_scale::Symbol = :log          # :log | :lin               (K)
+    color_scale::Symbol = :lin          # :lin | :log               (K)
     size_mode::Symbol = :rate           # :fixed | :rate            (R)
     show_hrv::Bool = true               # highlight high-rate-veto   (U)
     show_fifo::Bool = true              # highlight FIFO-almost-full (I)
     hide_nodata::Bool = true            # hide vs dim no-data DOMs   (Y)
-    smoothing::Bool = false             # average rates over a slice window (S)
-    smoothing_window::Int = 5           # number of slices averaged   ([ / ])
-    rate_min::Float64 = DEFAULT_RATE_MIN_HZ
-    rate_max::Float64 = DEFAULT_RATE_MAX_HZ
+    smoothing::Bool = true              # average rates over a slice window (S)
+    smoothing_window::Int = 10          # number of slices averaged   ([ / ])
+    # Independent rate colour windows per view; auto-calibrated from the data on load.
+    pmt_scale::RateScale = RateScale(DEFAULT_RATE_MIN_HZ, DEFAULT_RATE_MAX_HZ)
+    dom_scale::RateScale = RateScale(DEFAULT_RATE_MIN_HZ, DEFAULT_RATE_MAX_HZ)
     colorscheme::Symbol = :viridis
     alpha::Float64 = 0.95
     base_size_pmt::Float64 = 5.0
     base_size_dom::Float64 = 12.0
-    size_scale::Float64 = 1.0           # adjusted with - / =
+    size_scale::Float64 = 0.2           # marker-size multiplier (world space); -/= adjust it
     hrv_color::RGBAf = RGBAf(1.0, 0.1, 0.1, 1.0)
     fifo_color::RGBAf = RGBAf(1.0, 0.6, 0.0, 1.0)
     nodata_color::RGBAf = RGBAf(0.45, 0.45, 0.45, 0.25)
@@ -145,8 +167,9 @@ function pmt_frame_data(d::SummarysliceDisplay, slice)
     (rates, hrv, fifo, hasdata)
 end
 
-# Same, but aggregated per optical module (mean PMT rate, so the same rate colorbar serves
-# both granularities; HRV/FIFO are "any channel flagged").
+# Same, but aggregated per optical module: the module's total count rate, i.e. the sum of its
+# 31 PMT rates (so a DOM sits ~31x above a single PMT and needs its own colour scale).
+# HRV/FIFO are "any channel flagged".
 function dom_frame_data(d::SummarysliceDisplay, slice)
     geom = d.geom
     n = length(geom.dom_positions)
@@ -157,8 +180,7 @@ function dom_frame_data(d::SummarysliceDisplay, slice)
     for frame in slice.frames
         idx = get(geom.dom_index, frame.dom_id, nothing)
         idx === nothing && continue
-        rs = pmtrates(frame)
-        rates[idx] = sum(rs) / length(rs)
+        rates[idx] = sum(pmtrates(frame))
         hrv[idx] = hrvstatus(frame)
         fifo[idx] = fifostatus(frame)
         hasdata[idx] = true
@@ -166,9 +188,13 @@ function dom_frame_data(d::SummarysliceDisplay, slice)
     (rates, hrv, fifo, hasdata)
 end
 
+# The rate colour window for the current granularity (per-PMT or per-DOM view).
+active_scale(d::SummarysliceDisplay) = d.granularity === :pmt ? d.pmt_scale : d.dom_scale
+
 # Normalised position [0, 1] of a rate on the configured (log or linear) scale.
 function rate_fraction(rate, d::SummarysliceDisplay)
-    rmin, rmax = d.rate_min, d.rate_max
+    sc = active_scale(d)
+    rmin, rmax = sc.min, sc.max
     frac = if d.color_scale === :log
         (log(max(rate, rmin)) - log(rmin)) / (log(rmax) - log(rmin))
     else
@@ -294,6 +320,7 @@ function toggle_granularity!(rba::RBA)
     d = rba.summaryslices; d === nothing && return
     d.granularity = d.granularity === :pmt ? :dom : :pmt
     refresh_slice!(rba)
+    update_colorbar!(rba)   # the active rate scale switches with the view
     println("Summaryslice granularity: $(d.granularity)")
 end
 function toggle_color_scale!(rba::RBA)
@@ -356,14 +383,15 @@ function change_smoothing_window!(rba::RBA, delta::Int)
 end
 
 """
-Reset the rate colour scale to the default limits (`DEFAULT_RATE_MIN_HZ`,
-`DEFAULT_RATE_MAX_HZ`). Bound to a double right-click on the colorbar, mirroring the
-time-window reset in event mode.
+Reset the active view's rate colour scale to its auto-calibrated baseline (see
+[`calibrate_rate_scales!`](@ref)). Bound to a double right-click on the colorbar, mirroring
+the time-window reset in event mode.
 """
 function reset_rate_bounds!(rba::RBA)
     d = rba.summaryslices; d === nothing && return
-    d.rate_min = DEFAULT_RATE_MIN_HZ
-    d.rate_max = DEFAULT_RATE_MAX_HZ
+    sc = active_scale(d)
+    sc.min = sc.default_min
+    sc.max = sc.default_max
     refresh_slice!(rba)
     update_colorbar!(rba)
 end
@@ -376,8 +404,9 @@ log scale and linearly otherwise; `cb_h` is the colorbar height in pixels.
 """
 function adjust_rate_bounds!(rba::RBA, dx, dy, cb_h)
     d = rba.summaryslices; d === nothing && return
+    sc = active_scale(d)
     if d.color_scale === :log
-        lo, hi = log10(d.rate_min), log10(d.rate_max)
+        lo, hi = log10(sc.min), log10(sc.max)
         span = hi - lo
         if dx != 0
             c = (lo + hi) / 2
@@ -390,10 +419,10 @@ function adjust_rate_bounds!(rba::RBA, dx, dy, cb_h)
         end
         lo = clamp(lo, 0.0, 8.0)               # 1 Hz .. 100 MHz
         hi = clamp(hi, lo + 0.1, 8.3)
-        d.rate_min = 10.0^lo
-        d.rate_max = 10.0^hi
+        sc.min = 10.0^lo
+        sc.max = 10.0^hi
     else
-        lo, hi = d.rate_min, d.rate_max
+        lo, hi = sc.min, sc.max
         span = hi - lo
         if dx != 0
             c = (lo + hi) / 2
@@ -404,28 +433,109 @@ function adjust_rate_bounds!(rba::RBA, dx, dy, cb_h)
             shift = -dy * span / cb_h
             lo += shift; hi += shift
         end
-        lo = max(lo, 0.0)
+        lo = max(lo, 1.0)   # strictly positive so a later log toggle never sees a zero min
         hi = max(hi, lo + 1.0)
-        d.rate_min = lo
-        d.rate_max = hi
+        sc.min = lo
+        sc.max = hi
     end
     refresh_slice!(rba)
     update_colorbar!(rba)
+end
+
+# Quantile (linear interpolation) of an already-sorted, non-empty vector.
+function _quantile_sorted(s::AbstractVector{<:Real}, q)
+    n = length(s)
+    n == 1 && return float(s[1])
+    h = (n - 1) * clamp(q, 0.0, 1.0) + 1
+    lo = floor(Int, h)
+    lo >= n && return float(s[n])
+    frac = h - lo
+    s[lo] * (1 - frac) + s[lo + 1] * frac
+end
+
+# Round a (lo, hi) rate window outward to tidy 100 Hz steps, keeping at least a 100 Hz span
+# and a strictly positive lower limit (a zero min would break the logarithmic scale).
+function nice_rate_bounds(lo, hi)
+    lo = max(floor(lo / 100) * 100, 100.0)
+    hi = ceil(hi / 100) * 100
+    hi <= lo && (hi = lo + 100)
+    (lo, hi)
+end
+
+"""
+    calibrate_rate_scales!(d::SummarysliceDisplay; nsample=10, qlow=0.05, qhigh=0.95,
+                           pmt=nothing, dom=nothing)
+
+Set the per-PMT and per-DOM rate colour scales (`d.pmt_scale`, `d.dom_scale`) from the data:
+sample up to `nsample` summaryslices spread evenly across the file, collect the live
+single-PMT rates and the per-module total rates, and set each scale to the `qlow`/`qhigh`
+quantiles of its own distribution (rounded to tidy limits). This adapts the colours to the
+site's actual noise level (depth, sea state) so ordinary rate variations fill the colormap.
+HRV-flagged channels and modules are excluded from the sample, as are dead (zero-rate)
+channels. Pass `pmt`/`dom` as a `(min, max)` tuple in Hz to pin a scale and skip its sampling.
+The calibrated limits also become each scale's reset baseline.
+"""
+function calibrate_rate_scales!(d::SummarysliceDisplay; nsample=10, qlow=0.05, qhigh=0.95,
+                                pmt=nothing, dom=nothing)
+    ntot = nslices(d.file)
+    pmt_rates = Float64[]
+    dom_rates = Float64[]
+    if ntot > 0 && (pmt === nothing || dom === nothing)
+        k = min(nsample, ntot)
+        idxs = k <= 1 ? [1] : unique(round.(Int, range(1, ntot; length = k)))
+        for i in idxs
+            slice = getslice(d.file, i)
+            for frame in slice.frames
+                rs = pmtrates(frame)
+                if !hrvstatus(frame)                       # per-DOM total rate, skip HRV modules
+                    push!(dom_rates, sum(rs))
+                end
+                for ch in 0:length(rs) - 1                 # per-PMT, skip HRV / dead channels
+                    (hrvstatus(frame, ch) || rs[ch + 1] <= 0) && continue
+                    push!(pmt_rates, rs[ch + 1])
+                end
+            end
+        end
+    end
+
+    calibrated(rates) = let s = sort(rates)
+        nice_rate_bounds(_quantile_sorted(s, qlow), _quantile_sorted(s, qhigh))
+    end
+    if pmt !== nothing
+        d.pmt_scale = RateScale(Float64(pmt[1]), Float64(pmt[2]))
+    elseif !isempty(pmt_rates)
+        d.pmt_scale = RateScale(calibrated(pmt_rates)...)
+    end
+    if dom !== nothing
+        d.dom_scale = RateScale(Float64(dom[1]), Float64(dom[2]))
+    elseif !isempty(dom_rates)
+        d.dom_scale = RateScale(calibrated(dom_rates)...)
+    end
+    d
 end
 
 """
     load_summaryslices!([rba::RBA], f::SummarysliceFile; kwargs...)
 
 Switch `rba` into summaryslice mode: draw the geometry of `f`, build the rate-field
-geometry index and show the first slice. Extra keyword arguments are forwarded to
-[`SummarysliceDisplay`](@ref) (e.g. `granularity=:dom`, `color_scale=:lin`). Does not open
-a window (use [`run`](@ref)).
+geometry index, auto-calibrate the per-view rate scales (see [`calibrate_rate_scales!`](@ref))
+and show the first slice. Does not open a window (use [`run`](@ref)).
+
+Keyword arguments:
+  - `pmt_rate`, `dom_rate`: a `(min, max)` tuple in Hz to pin the per-PMT / per-DOM colour
+    scale instead of calibrating it from the data.
+  - `calibration_slices`: how many summaryslices to sample when calibrating (default 10).
+  - any field of [`SummarysliceDisplay`](@ref) (e.g. `granularity=:dom`, `color_scale=:log`).
 """
-function load_summaryslices!(rba::RBA, f::SummarysliceFile; kwargs...)
+function load_summaryslices!(rba::RBA, f::SummarysliceFile;
+                             pmt_rate=nothing, dom_rate=nothing, calibration_slices=10,
+                             kwargs...)
     update!(rba, f.detector)
     geom = build_rate_geometry(f.detector)
     rba.eventfile = nothing
     rba.summaryslices = SummarysliceDisplay(; file=f, geom=geom, kwargs...)
+    calibrate_rate_scales!(rba.summaryslices; nsample=calibration_slices,
+                           pmt=pmt_rate, dom=dom_rate)
     sp = rba.simparams
     sp.animation_mode = :summaryslice
     sp.frame_idx = 0

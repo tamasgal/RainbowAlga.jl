@@ -70,8 +70,14 @@ function snapshot(rba::RBA, filename::AbstractString;
             update_cam!(rba.scene, rba.cam, Vec3f(eyeposition), Vec3f(lookat), Vec3f(0, 0, 1))
         end
 
-        t = rba.simparams.t_offset + (isnothing(time) ? full_event_time(rba) : time)
-        apply_frame!(rba, t)
+        if rba.simparams.animation_mode === :summaryslice
+            # In summaryslice mode `time` denotes the slice ordinal (0-based); default to
+            # the slice currently selected by the animation cursor.
+            apply_slice!(rba, isnothing(time) ? rba.simparams.frame_idx : Int(time))
+        else
+            t = rba.simparams.t_offset + (isnothing(time) ? full_event_time(rba) : time)
+            apply_frame!(rba, t)
+        end
 
         save(filename, rba.scene; px_per_unit=px_per_unit)
     finally

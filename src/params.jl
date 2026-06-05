@@ -30,6 +30,7 @@ Base.@kwdef mutable struct SimParams
     displayed_hitscloud::Int = 0  # index of the hits cloud currently uploaded to the shared mesh (0 = none)
     hit_scaling::Int = 50  # factor to multiply the size of the hits
     fps::Int = 30  # render frames per second (caps the GLMakie render loop)
+    animation_mode::Symbol = :time  # :time (hits/tracks by ns) or :summaryslice (per-PMT rates by slice index)
     event_input_mode::Bool = false
     event_input_buffer::String = ""
     frame_tc_input_stage::Int = 0  # 0 = off, 1 = entering frame_index, 2 = entering trigger_counter

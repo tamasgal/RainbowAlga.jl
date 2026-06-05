@@ -25,3 +25,12 @@ abstract type AbstractEventFile end
 function geometry end
 function nevents end
 function eventsample end
+
+"""
+    AbstractSummarysliceView
+
+Supertype for the summaryslice display state held by an [`RBA`](@ref). Declared here (ahead
+of `RBA`) so the `RBA.summaryslices` field can refer to it; the concrete `SummarysliceDisplay`
+is defined in `summaryslices.jl`.
+"""
+abstract type AbstractSummarysliceView end

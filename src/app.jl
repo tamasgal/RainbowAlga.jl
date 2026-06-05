@@ -8,6 +8,12 @@ function update_infotext!(rba)
         rba.infobox.text = ""
         return
     end
+
+    if rba.simparams.animation_mode === :summaryslice && !isnothing(rba.summaryslices)
+        rba.infobox.text = summaryslice_infotext(rba)
+        return
+    end
+
     lines = String[]
     push!(lines, "t = $(rba.simparams.frame_idx) ns (loop=$(rba.simparams.loop_enabled))")
     push!(lines, @sprintf "time offset = %.0f ns  duration = %d ns" rba.simparams.t_offset rba.simparams.loop_end_frame_idx)
@@ -36,6 +42,28 @@ function update_infotext!(rba)
     push!(lines, "Press H for keybindings")
 
     rba.infobox.text = join(lines, "\n")
+end
+
+"""
+Infobox text for the summaryslice mode: the slice ordinal, hardware frame index, UTC time
+and per-slice activity, plus the current display-option states.
+"""
+function summaryslice_infotext(rba)
+    d = rba.summaryslices
+    sp = rba.simparams
+    lines = String[]
+    push!(lines, "slice $(d.current_index) / $(nslices(d.file))   frame_index = $(d.current_frame_index)")
+    push!(lines, "UTC $(d.current_utc)   (100 ms per slice, loop=$(sp.loop_enabled))")
+    push!(lines, "active DOMs = $(d.n_active)   HRV PMTs = $(d.n_hrv)   speed = $(sp.speed) slice/tick")
+    push!(lines, @sprintf "Position: x=%.1f y=%.1f z=%1.f" get_current_cam_position()...)
+    push!(lines, @sprintf "Target: x=%.1f y=%.1f z=%1.f" get_current_cam_target()...)
+    push!(lines, "granularity=$(d.granularity)  scale=$(d.color_scale)  size=$(d.size_mode)  " *
+                 "HRV=$(d.show_hrv ? "on" : "off")  FIFO=$(d.show_fifo ? "on" : "off")  " *
+                 "no-data=$(d.hide_nodata ? "hidden" : "dimmed")  cmap=$(d.colorscheme)  " *
+                 "smoothing=$(d.smoothing ? "$(d.smoothing_window) slices" : "off")")
+    push!(lines, "[Space play, </> step, G gran, K log/lin, R size, U HRV, I FIFO, Y no-data, C cmap, S smooth, [ ] window]")
+    push!(lines, "Press H for keybindings")
+    join(lines, "\n")
 end
 
 function start_eventloop(rba; interactive=true)
@@ -78,25 +106,45 @@ function start_eventloop(rba; interactive=true)
             Makie.reset!(screen.timer, 1.0 / rba.simparams.fps)
         end
 
-        if rba.simparams.loop_enabled && rba.simparams.frame_idx > rba.simparams.loop_end_frame_idx
-            rba.simparams.frame_idx = 0
-        end
-
-        rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
-
-        # Single shared mesh: reconfigure positions/colours only when the selection
-        # changed, then resize markers every tick to animate hits as time advances.
-        apply_frame!(rba, rba.simparams.t_offset + rba.simparams.frame_idx)
-
-        update_infotext!(rba)
-
-        if !isstopped(rba)
-            rba.simparams.frame_idx += rba.simparams.speed
-        end
+        advance_and_draw!(rba, scene)
     end
     if !interactive
         wait(screen)
         wait(recording_task)
+    end
+end
+
+"""
+One animation step driven by the render tick. In the default `:time` mode it reveals hits
+and moves tracks at `t = t_offset + frame_idx` (ns); in `:summaryslice` mode `frame_idx` is
+the slice ordinal and the rate field for that slice is painted instead.
+"""
+function advance_and_draw!(rba, scene)
+    sp = rba.simparams
+    if sp.animation_mode === :summaryslice
+        if sp.loop_enabled && sp.frame_idx > sp.loop_end_frame_idx
+            sp.frame_idx = 0
+        elseif sp.frame_idx < 0
+            sp.frame_idx = sp.loop_enabled ? sp.loop_end_frame_idx : 0
+        end
+        rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
+        apply_slice!(rba, sp.frame_idx)
+        update_infotext!(rba)
+        if !isstopped(rba)
+            sp.frame_idx += sp.speed
+        end
+    else
+        if sp.loop_enabled && sp.frame_idx > sp.loop_end_frame_idx
+            sp.frame_idx = 0
+        end
+        rotation_enabled(rba) && rotate_cam!(scene, Vec3f(0, 0.001, 0))
+        # Single shared mesh: reconfigure positions/colours only when the selection
+        # changed, then resize markers every tick to animate hits as time advances.
+        apply_frame!(rba, sp.t_offset + sp.frame_idx)
+        update_infotext!(rba)
+        if !isstopped(rba)
+            sp.frame_idx += sp.speed
+        end
     end
 end
 

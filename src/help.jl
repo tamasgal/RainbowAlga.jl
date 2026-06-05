@@ -6,12 +6,12 @@ for the help overlay; keep it in sync with the handlers in `register_events`.
 """
 const KEYBINDINGS = [
     ("Space",        "play / pause"),
-    ("0",            "reset time to the start"),
-    ("Left / Right", "step time backward / forward"),
+    ("0",            "reset to the start"),
+    ("Left / Right", "step time / slice backward / forward"),
     ("Up / Down",    "increase / decrease speed"),
     (", / .",        "lower / raise the ToT cut"),
-    ("- / =",        "smaller / larger hits"),
-    ("c / Shift+c",  "next / previous hit colouring"),
+    ("- / =",        "smaller / larger markers"),
+    ("c / Shift+c",  "next / previous colouring (colormap in slices)"),
     ("l",            "toggle the time loop"),
     ("o",            "toggle auto-rotation"),
     ("b",            "toggle dark mode"),
@@ -23,6 +23,14 @@ const KEYBINDINGS = [
     ("n / Shift+n",  "next / previous event"),
     ("e",            "jump to an event by index"),
     ("f",            "jump by frame index / trigger counter"),
+    ("g",            "PMT / DOM granularity (slices)"),
+    ("k",            "log / linear rate scale (slices)"),
+    ("r",            "fixed / rate-scaled size (slices)"),
+    ("u",            "toggle HRV highlight (slices)"),
+    ("i",            "toggle FIFO highlight (slices)"),
+    ("y",            "hide / dim no-data DOMs (slices)"),
+    ("s",            "toggle rate smoothing (slices)"),
+    ("[ / ]",        "shorten / lengthen smoothing window (slices)"),
     ("h",            "toggle this help"),
 ]
 
@@ -43,7 +51,7 @@ function setup_help_overlay!(rba::RBA)
     visible = Observable(false)
     pad = 18
     line_h = 20
-    panel_w = 440
+    panel_w = 560
     panel_h = (length(KEYBINDINGS) + 3) * line_h + 2pad
 
     # Bottom-left corner of the panel, kept centred as the window resizes.
@@ -65,7 +73,7 @@ function setup_help_overlay!(rba::RBA)
           align = (:left, :top), color = RGBAf(0.92, 0.92, 0.92, 1.0), visible = visible)
 
     text!(cpscene, @lift(Point2f($x0 + pad, $y0 + pad)); align = (:left, :bottom),
-          text = "n, e and f require a loaded event file.", fontsize = 12,
+          text = "n, e, f need an event file; g, k, r, u, i, y apply in summaryslice mode.", fontsize = 12,
           color = RGBAf(0.7, 0.7, 0.7, 1.0), visible = visible)
 
     rba._plots["help_visible"] = visible

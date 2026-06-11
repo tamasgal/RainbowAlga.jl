@@ -56,7 +56,7 @@ off-screen with [`snapshot`](@ref) -- by passing the `RBA` as the first argument
         roll_clockwise_key = Keyboard.unknown, roll_counterclockwise_key = Keyboard.unknown,
         fix_x_key = Keyboard.unknown, fix_y_key = Keyboard.unknown, fix_z_key = Keyboard.unknown,
     )
-    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), font=overlayfont(), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
     center::Point3f = Point3f(0.0, 0.0, 0.0)

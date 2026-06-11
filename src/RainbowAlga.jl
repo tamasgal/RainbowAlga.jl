@@ -26,6 +26,7 @@ export SummarysliceFile, load_summaryslices!
 # methods that operate on them, and runtime.jl (which holds a typed RBA reference) after.
 include("interfaces.jl")   # AbstractEventFile + extension interface
 include("params.jl")       # DisplayParams, SimParams
+include("fonts.jl")        # monospace overlay font + pixel cell metrics
 include("recording.jl")    # video recording
 include("tracks.jl")       # Track + Cherenkov cone
 include("types.jl")        # Hit, HitsCloud, RBA
@@ -39,6 +40,7 @@ include("app.jl")          # infobox, render loop
 include("eventfile.jl")    # EventFile (online/offline)
 include("summaryslices.jl")# summaryslice rate-field mode
 include("interactivity.jl")# keyboard + control functions
+include("hover.jl")        # module hover tooltip
 include("artists.jl")      # colour schemes
 include("utils.jl")        # hit selection helpers
 include("annotations.jl")  # user-added scene primitives

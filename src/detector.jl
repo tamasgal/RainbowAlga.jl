@@ -29,12 +29,19 @@ function update!(rba::RBA, det::Detector; simplified_doms=true, dom_diameter=0.4
     plots = rba._plots["Detector"] = []
 
     opticalmodules = [m for m in det if isopticalmodule(m)]
-    push!(plots, meshscatter!(
+    dom_plot = meshscatter!(
         scene,
         [m.pos for m ∈ opticalmodules],
         markersize=dom_diameter*dom_scaling,
         color=RGBAf(0.3, 0.3, 0.3, 0.8)
-    ))
+    )
+    push!(plots, dom_plot)
+    # Remember the DOM markers and the modules behind them (in the same order) so the hover
+    # tooltip can map a picked marker back to its module. `opticalmodules` here uses the
+    # identical detector iteration order as `build_rate_geometry`, so the rate markers share
+    # this mapping too.
+    rba._plots["dom_plot"] = dom_plot
+    rba._plots["modules"] = opticalmodules
 
     if !simplified_doms
       pmt_positions = Position{Float64}[]

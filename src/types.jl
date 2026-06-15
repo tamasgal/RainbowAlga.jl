@@ -13,11 +13,14 @@ Pure-data container for a set of hits: their positions and (time-based) colours 
 `description`. The hits are not a GPU object themselves; the scene holds a single shared
 `MeshScatter` (`RBA.hits_mesh`) which is reconfigured from the selected cloud. The
 `description` doubles as the name of the `ColorSchemes` colour map used for the colorbar.
+`dom_ids` is parallel to `positions` and holds the module id each hit belongs to, so a pick
+on a hit marker can be mapped back to its optical module (used by the hover tooltip).
 
 """
 mutable struct HitsCloud
     hits::Vector{Hit}
     positions::Vector{Point3f}
+    dom_ids::Vector{Int}
     colors::Vector{RGBAf}
     alpha::Float64
     description::String

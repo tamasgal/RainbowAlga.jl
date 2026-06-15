@@ -42,6 +42,8 @@ function update!(rba::RBA, det::Detector; simplified_doms=true, dom_diameter=0.4
     # this mapping too.
     rba._plots["dom_plot"] = dom_plot
     rba._plots["modules"] = opticalmodules
+    # dom_id -> module, so a pick on a hit marker (which carries its dom_id) maps to the module.
+    rba._plots["dom_by_id"] = Dict(Int(m.id) => m for m in opticalmodules)
 
     if !simplified_doms
       pmt_positions = Position{Float64}[]

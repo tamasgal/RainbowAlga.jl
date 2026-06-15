@@ -16,7 +16,13 @@ function setup_hover_overlay!(rba::RBA)
     box = Observable(Rect2f(0, 0, 1, 1))
     textpos = Observable(Point2f(0, 0))
     label = Observable("")
+    linepts = Observable([Point2f(0, 0), Point2f(0, 0)])
 
+    # Leader line from the tooltip box to the exact projected centre of the hovered module.
+    # A polyline writes pick ids only along its thin stroke (no fill), so it does not block
+    # picking the DOM it points at.
+    leader = lines!(cpscene, linepts;
+          color = RGBAf(1.0, 0.8, 0.1, 0.95), linewidth = 2, visible = visible)
     poly!(cpscene, box;
           color = RGBAf(0.05, 0.05, 0.08, 0.85),
           strokecolor = RGBAf(1.0, 1.0, 1.0, 0.35), strokewidth = 1.0, visible = visible)
@@ -28,6 +34,9 @@ function setup_hover_overlay!(rba::RBA)
     rba._plots["hover_box"] = box
     rba._plots["hover_textpos"] = textpos
     rba._plots["hover_text"] = label
+    rba._plots["hover_line"] = leader
+    rba._plots["hover_linepts"] = linepts
+    rba._plots["hover_module"] = nothing
     nothing
 end
 
@@ -56,8 +65,9 @@ end
 
 Return the optical module currently under the mouse, or `nothing` if the cursor is not over
 one. Picks the topmost plot at the cursor: the grey DOM geometry markers map directly to the
-canonical module order (`_plots["modules"]`), and the summaryslice rate markers map by
-nearest module. Other plots (hit markers, tracks, ...) yield `nothing`.
+canonical module order (`_plots["modules"]`); a hit marker maps to the module its hit belongs
+to (so a DOM buried under its own hit blob is still selectable); and the summaryslice rate
+markers map by nearest module. Other plots (tracks, ...) yield `nothing`.
 """
 function module_under_cursor(rba::RBA)
     modules = get(rba._plots, "modules", nothing)
@@ -66,10 +76,24 @@ function module_under_cursor(rba::RBA)
     plt === nothing && return nothing
     if plt === get(rba._plots, "dom_plot", nothing)
         return (1 <= idx <= length(modules)) ? modules[idx] : nothing
+    elseif plt === rba.hits_mesh
+        # Hovering a hit blob resolves to the module the picked hit belongs to, so DOMs hidden
+        # behind their own hits stay selectable (the pick buffer keeps only the front hit).
+        ci = rba.simparams.displayed_hitscloud
+        (1 <= ci <= length(rba.hitsclouds)) || return nothing
+        dom_ids = rba.hitsclouds[ci].dom_ids
+        (1 <= idx <= length(dom_ids)) || return nothing
+        dom_by_id = get(rba._plots, "dom_by_id", nothing)
+        dom_by_id === nothing && return nothing
+        return get(dom_by_id, dom_ids[idx], nothing)
     elseif plt === rba.rate_mesh
         positions = rba.rate_mesh.positions[]
         (1 <= idx <= length(positions)) || return nothing
         return nearest_module(modules, positions[idx])
+    elseif plt === get(rba._plots, "hover_line", nothing)
+        # The cursor is on the leader line of the currently hovered module; keep it so the
+        # tooltip does not flicker as the cursor grazes the stroke.
+        return get(rba._plots, "hover_module", nothing)
     end
     return nothing
 end
@@ -87,9 +111,15 @@ function update_hover!(rba::RBA, mousepos)
 
     m = module_under_cursor(rba)
     if m === nothing
+        rba._plots["hover_module"] = nothing
         visible[] = false
         return
     end
+    rba._plots["hover_module"] = m
+
+    scene = rba.scene
+    # DOM centre projected to screen pixels (same space as campixel and the cursor).
+    domcenter = Point2f(Makie.project(scene, Point3f(m.pos)))
 
     lines = ["DU $(m.location.string)", "Floor $(m.location.floor)", "DOM $(m.id)"]
     txt = join(lines, "\n")
@@ -114,6 +144,12 @@ function update_hover!(rba::RBA, mousepos)
     rba._plots["hover_box"][] = Rect2f(ox, oy, w, h)
     rba._plots["hover_textpos"][] = Point2f(ox + pad, oy + h - pad)
     rba._plots["hover_text"][] = txt
+    # Leader line: from the middle of the box's left side to the DOM centre exactly. When the
+    # box is flipped to the left of the cursor (near the right window edge) the DOM is on the
+    # box's right, so attach to the right side instead to avoid crossing the box.
+    anchor_x = domcenter[1] < ox + w / 2 ? Float64(ox) : Float64(ox + w)
+    anchor = Point2f(anchor_x, oy + h / 2)
+    rba._plots["hover_linepts"][] = [anchor, domcenter]
     visible[] = true
     nothing
 end
@@ -121,19 +157,18 @@ end
 """
     refresh_hover!(rba)
 
-Re-evaluate the hover tooltip against the current camera using the last known cursor position.
-The mouse-move handler keeps the tooltip correct while the cursor moves, but when the camera
+Re-evaluate the hover tooltip and leader line against the current camera using the last known
+cursor position. The mouse-move handler keeps them correct while the cursor moves, but when the camera
 moves on its own (auto-rotation) the module under a stationary cursor changes without a mouse
-event, so this is called from the render loop to keep the tooltip honest. Skipped when the
-cursor is outside the window and when nothing would change (no rotation and no visible
-tooltip) to avoid a per-frame pick readback while idle.
+event, so this is called from the render loop to re-pick and re-project. Skipped when nothing
+would change (no rotation and no visible tooltip) to avoid a per-frame pick readback while idle.
+A cursor outside the window needs no special case: `pick` returns nothing for an out-of-bounds
+position, so `update_hover!` simply hides the tooltip.
 """
 function refresh_hover!(rba::RBA)
     haskey(rba._plots, "hover_visible") || return
-    scene = rba.scene
-    events(scene).entered_window[] || return
     (rotation_enabled(rba) || rba._plots["hover_visible"][]) || return
-    update_hover!(rba, events(scene).mouseposition[])
+    update_hover!(rba, events(rba.scene).mouseposition[])
     nothing
 end
 

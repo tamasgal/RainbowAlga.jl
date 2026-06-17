@@ -20,6 +20,7 @@ export save_perspective, load_perspective
 export generate_colors, generate_shower_colors, select_first_hits, select_cherenkov_hits
 export global_scene, annotate!
 export AbstractEventFile, EventFile, load!, load_event!, next_event!, previous_event!
+export next_selected_event!, previous_selected_event!
 export SummarysliceFile, load_summaryslices!
 
 # Load order matters: interfaces and structs (tracks, types) must come before the RBA

@@ -363,6 +363,16 @@ function register_events(rba::RBA, screen, recorder)
                 next_event!(rba)
                 return Consume()
             end
+            # S / Shift+S navigate the selector-accepted events. Only reached in :time mode;
+            # in :summaryslice mode S is consumed earlier as the smoothing toggle.
+            if ispressed(scene, Makie.Keyboard.s & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
+                previous_selected_event!(rba)
+                return Consume()
+            end
+            if ispressed(scene, Makie.Keyboard.s)
+                next_selected_event!(rba)
+                return Consume()
+            end
             if ispressed(scene, Makie.Keyboard.e)
                 rba.simparams.event_input_mode = true
                 rba.simparams.event_input_buffer = ""

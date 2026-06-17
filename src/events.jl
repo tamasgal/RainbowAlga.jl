@@ -40,6 +40,96 @@ Show the previous event of the currently loaded event file (bound to `Shift+N`).
 previous_event!(rba::RBA) = load_event!(rba, rba.current_event_idx - 1)
 previous_event!() = previous_event!(global_rba())
 
+"""
+Return whether event `idx` is accepted by the attached event file's selector, caching the
+verdict in `rba._selection_verdicts` so the selector runs at most once per event. Files
+without a selector accept every event. A selector that throws is treated as a rejection.
+"""
+function is_selected!(rba::RBA, idx::Int)
+    f = rba.eventfile
+    isnothing(f) && return false
+    sel = eventselector(f)
+    isnothing(sel) && return true  # no selector -> every event qualifies
+    get!(rba._selection_verdicts, idx) do
+        ok = try
+            sel(rawevent(f, idx), geometry(f))::Bool
+        catch e
+            @warn "Selector errored on event $idx; treating as rejected." exception = (e, catch_backtrace())
+            false
+        end
+        # The do-block runs only on a cache miss, so each accepted index is inserted once.
+        ok && insert!(rba.selected_events, searchsortedfirst(rba.selected_events, idx), idx)
+        ok
+    end
+end
+
+"""
+Find the first event index accepted by the selector when walking from `start` in direction
+`step` (`+1`/`-1`), wrapping around the end. Returns `nothing` if no event in the whole file
+is accepted. `start == 0` (no event loaded) begins at the first/last index. Lazy: only the
+indices it visits are evaluated, and each is cached via [`is_selected!`](@ref).
+"""
+function find_selected_from(rba::RBA, start::Int, step::Int)
+    f = rba.eventfile
+    isnothing(f) && return nothing
+    n = nevents(f)
+    n == 0 && return nothing
+    # Normalize a "no current event" start so the first candidate is index 1 (forward) or n (backward).
+    if start < 1 || start > n
+        start = step > 0 ? 0 : n + 1
+    end
+    cur = start
+    for _ in 1:n
+        cur = mod1(cur + step, n)
+        is_selected!(rba, cur) && return cur
+    end
+    nothing
+end
+
+"""
+    next_selected_event!()
+
+Show the next event accepted by the event file's selector (bound to the `S` key), wrapping
+to the first accepted event past the end. Does nothing if the file has no selector.
+"""
+function next_selected_event!(rba::RBA)
+    isnothing(rba.eventfile) && return
+    if isnothing(eventselector(rba.eventfile))
+        @info "No selector set on this event file; use N / Shift+N for sequential navigation."
+        return
+    end
+    idx = find_selected_from(rba, rba.current_event_idx, 1)
+    if isnothing(idx)
+        @info "No events match the selector."
+    elseif idx != rba.current_event_idx  # avoid reloading when it is the only accepted event
+        load_event!(rba, idx)
+    end
+    nothing
+end
+next_selected_event!() = next_selected_event!(global_rba())
+
+"""
+    previous_selected_event!()
+
+Show the previous event accepted by the event file's selector (bound to `Shift+S`), wrapping
+to the last accepted event past the start. Does nothing if the file has no selector.
+"""
+function previous_selected_event!(rba::RBA)
+    isnothing(rba.eventfile) && return
+    if isnothing(eventselector(rba.eventfile))
+        @info "No selector set on this event file; use N / Shift+N for sequential navigation."
+        return
+    end
+    idx = find_selected_from(rba, rba.current_event_idx, -1)
+    if isnothing(idx)
+        @info "No events match the selector."
+    elseif idx != rba.current_event_idx
+        load_event!(rba, idx)
+    end
+    nothing
+end
+previous_selected_event!() = previous_selected_event!(global_rba())
+
 function run(rba::RBA; interactive=true)
     println("Registering events")
     println("Centering scene")
@@ -61,7 +151,15 @@ load!(f::AbstractEventFile) = load!(global_rba(), f)
 function load!(rba::RBA, f::AbstractEventFile)
     update!(rba, geometry(f))
     rba.eventfile = f
-    load_event!(rba, 1)
+    empty!(rba.selected_events)
+    empty!(rba._selection_verdicts)
+    if isnothing(eventselector(f))
+        load_event!(rba, 1)
+    else
+        idx = find_selected_from(rba, 0, 1)  # first accepted event (lazy forward scan)
+        isnothing(idx) && @info "No events match the selector; showing event 1."
+        load_event!(rba, isnothing(idx) ? 1 : idx)
+    end
     rba
 end
 

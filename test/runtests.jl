@@ -2,6 +2,17 @@ using RainbowAlga
 using KM3io
 using Test
 
+# Minimal AbstractEventFile used to exercise the selector navigation without any GLMakie /
+# ROOT I/O: `rawevent` returns the index itself so a selector can be expressed over `1:n`.
+struct DummyFile <: RainbowAlga.AbstractEventFile
+    n::Int
+    selector::Union{Nothing,Function}
+end
+RainbowAlga.geometry(::DummyFile) = nothing
+RainbowAlga.nevents(f::DummyFile) = f.n
+RainbowAlga.rawevent(::DummyFile, idx::Int) = idx
+RainbowAlga.eventselector(f::DummyFile) = f.selector
+
 @testset "RainbowAlga.jl" begin
     # Loading the package initialises GLMakie, which requires a working OpenGL context
     # (Mesa software rendering + Xvfb in headless CI). Constructing an RBA builds the
@@ -21,7 +32,8 @@ using Test
                 :save_perspective, :load_perspective, :generate_colors,
                 :generate_shower_colors, :select_first_hits, :select_cherenkov_hits,
                 :global_scene, :annotate!, :AbstractEventFile, :EventFile, :load!,
-                :load_event!, :next_event!, :previous_event!)
+                :load_event!, :next_event!, :previous_event!,
+                :next_selected_event!, :previous_selected_event!)
         @test isdefined(RainbowAlga, sym)
     end
 
@@ -189,5 +201,105 @@ using Test
         out = joinpath(dir, "slice.png")
         @test snapshot(srba, out; size = (320, 240), time = 0) == out
         @test isfile(out) && filesize(out) > 0
+    end
+
+    # ----------------------------------------------------------------------------------
+    # Selector-based navigation (S / Shift+S). The pure navigation core
+    # (find_selected_from / is_selected!) is exercised over a DummyFile so it needs no
+    # GLMakie render or ROOT I/O.
+    @testset "selector navigation" begin
+        # Selector accepting even indices over 1:6, counting its invocations.
+        calls = Ref(0)
+        evens(evt, det) = (calls[] += 1; iseven(evt))
+        srba2 = RBA()
+        srba2.eventfile = DummyFile(6, evens)
+
+        # forward, lazily discovering the accepted indices
+        @test RainbowAlga.find_selected_from(srba2, 0, 1) == 2   # first even from the start
+        @test RainbowAlga.find_selected_from(srba2, 2, 1) == 4
+        @test RainbowAlga.find_selected_from(srba2, 4, 1) == 6
+        @test RainbowAlga.find_selected_from(srba2, 6, 1) == 2   # wrap past the end
+
+        # every index has now been evaluated exactly once; wrapping re-uses the cache
+        @test calls[] == 6
+        @test srba2.selected_events == [2, 4, 6]            # sorted + unique
+        @test issorted(srba2.selected_events) && allunique(srba2.selected_events)
+        @test length(srba2._selection_verdicts) == 6        # all verdicts cached
+        @test RainbowAlga.find_selected_from(srba2, 6, 1) == 2
+        @test calls[] == 6                                  # selector never re-ran
+
+        # backward direction, with wrap to the last accepted index
+        @test RainbowAlga.find_selected_from(srba2, 6, -1) == 4
+        @test RainbowAlga.find_selected_from(srba2, 2, -1) == 6   # wrap past the start
+        @test RainbowAlga.find_selected_from(srba2, 0, -1) == 6   # no current -> last accepted
+
+        # no selector -> every event qualifies, cache stays empty
+        nrba = RBA()
+        nrba.eventfile = DummyFile(6, nothing)
+        @test RainbowAlga.is_selected!(nrba, 3) == true
+        @test RainbowAlga.find_selected_from(nrba, 0, 1) == 1
+        @test RainbowAlga.find_selected_from(nrba, 3, 1) == 4
+        @test RainbowAlga.find_selected_from(nrba, 6, 1) == 1     # wrap
+        @test isempty(nrba.selected_events) && isempty(nrba._selection_verdicts)
+
+        # nothing matches -> find_selected_from returns nothing
+        zrba = RBA()
+        zrba.eventfile = DummyFile(4, (evt, det) -> false)
+        @test RainbowAlga.find_selected_from(zrba, 0, 1) === nothing
+        @test isempty(zrba.selected_events)
+
+        # a single match found from itself returns that index (next_selected_event! no-ops)
+        orba = RBA()
+        orba.eventfile = DummyFile(5, (evt, det) -> evt == 3)
+        @test RainbowAlga.find_selected_from(orba, 3, 1) == 3
+
+        # a throwing selector is treated as a rejection rather than aborting navigation
+        trba = RBA()
+        trba.eventfile = DummyFile(4, (evt, det) -> evt == 2 ? error("boom") : evt == 4)
+        @test RainbowAlga.find_selected_from(trba, 0, 1) == 4
+    end
+
+    # End-to-end with the bundled offline file: a selector lands on the first accepted event
+    # and a reject-all selector falls back to event 1.
+    @testset "selector end-to-end" begin
+        @test RainbowAlga.eventselector(f) === nothing   # plain EventFile has no selector
+
+        fsel = EventFile(joinpath(datadir, "KM3-230213A_allhits.root"),
+                         joinpath(datadir, "detector.dynamical.datx");
+                         selector = (evt, det) -> length(evt.hits) > 0)
+        @test RainbowAlga.eventselector(fsel) !== nothing
+        selrba = RBA()
+        load!(selrba, fsel)
+        @test selrba.current_event_idx >= 1
+        @test RainbowAlga.is_selected!(selrba, selrba.current_event_idx)
+        @test !isempty(selrba.selected_events)
+        @test issorted(selrba.selected_events) && allunique(selrba.selected_events)
+
+        # driving the public navigation functions stays on an accepted event
+        next_selected_event!(selrba)
+        @test RainbowAlga.is_selected!(selrba, selrba.current_event_idx)
+        previous_selected_event!(selrba)
+        @test RainbowAlga.is_selected!(selrba, selrba.current_event_idx)
+
+        # navigation on a file without a selector is a no-op (keeps the current event)
+        idx0 = erba.current_event_idx
+        next_selected_event!(erba)
+        @test erba.current_event_idx == idx0
+
+        fnone = EventFile(joinpath(datadir, "KM3-230213A_allhits.root"),
+                          joinpath(datadir, "detector.dynamical.datx");
+                          selector = (evt, det) -> false)
+        norba = RBA()
+        load!(norba, fnone)
+        @test norba.current_event_idx == 1          # fallback to event 1
+        @test isempty(norba.selected_events)
+    end
+
+    # run(...) convenience methods dispatch on paths/objects and forward source + selector
+    # to the EventFile constructor (the window-opening path itself is not exercised here).
+    @testset "run convenience signatures" begin
+        @test hasmethod(RainbowAlga.run, Tuple{AbstractString, AbstractString}, (:source, :selector, :interactive))
+        @test hasmethod(RainbowAlga.run, Tuple{AbstractString, KM3io.Detector}, (:source, :selector, :interactive))
+        @test hasmethod(RainbowAlga.run, Tuple{KM3io.ROOTFile, KM3io.Detector}, (:source, :selector, :interactive))
     end
 end

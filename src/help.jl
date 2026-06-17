@@ -21,6 +21,7 @@ const KEYBINDINGS = [
     ("p",            "save a screenshot (PNG)"),
     ("v",            "start / stop video recording"),
     ("n / Shift+n",  "next / previous event"),
+    ("s / Shift+s",  "next / previous selected event (needs a selector)"),
     ("e",            "jump to an event by index"),
     ("f",            "jump by frame index / trigger counter"),
     ("g",            "PMT / DOM granularity (slices)"),
@@ -58,7 +59,7 @@ function setup_help_overlay!(rba::RBA)
     action_chars = maximum(length, last.(KEYBINDINGS))
     col_gap = 2
     key_col = round(Int, (key_chars + col_gap) * cellwidth(fontsize))
-    footer = "n, e, f need an event file; g, k, r, u, i, y apply in summaryslice mode."
+    footer = "n, e, f, s need an event file (s needs a selector); g, k, r, u, i, y, s apply in summaryslice mode."
     panel_w = round(Int, max((key_chars + col_gap + action_chars) * cellwidth(fontsize),
                              length(footer) * cellwidth(12)) + 2pad)
     panel_h = (length(KEYBINDINGS) + 3) * line_h + 2pad

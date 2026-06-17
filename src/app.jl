@@ -29,7 +29,12 @@ function update_infotext!(rba)
     if !isnothing(rba.eventfile)
         n = nevents(rba.eventfile)
         idx_str = rba.current_event_idx > 0 ? "Event: $(rba.current_event_idx) / $n  " : ""
-        push!(lines, "$(idx_str)frame=$(rba.current_frame_index)  TC=$(rba.current_trigger_counter)  [N/Shift+N: next/prev, E: #, F: frame/TC]")
+        push!(lines, "$(idx_str)frame=$(rba.current_frame_index)  TC=$(rba.current_trigger_counter)  [N/Shift+N: next/prev, S/Shift+S: selected, E: #, F: frame/TC]")
+        if !isnothing(eventselector(rba.eventfile))
+            verdict = get(rba._selection_verdicts, rba.current_event_idx, nothing)
+            status = isnothing(verdict) ? "?" : (verdict ? "selected" : "rejected")
+            push!(lines, "Selector: $(length(rba.selected_events)) matched so far  current: $(status)")
+        end
     end
     if rba.simparams.event_input_mode
         push!(lines, "Jump to event #: $(rba.simparams.event_input_buffer)_  (ENTER confirms, any other key cancels)")

@@ -16,6 +16,15 @@ source navigable with [`next_event!`](@ref) / [`previous_event!`](@ref):
     shown in the infobox (use `0` if not applicable) and `event` is the raw event for
     reconstructed/MC track overlays (or `nothing`).
 
+Two further functions are optional (they have sensible defaults) and power the
+selector-based navigation (`S` / `Shift+S`, see [`next_selected_event!`](@ref)):
+
+  - `rawevent(f, idx::Int)` -- the raw event passed to a selector, fetched as cheaply
+    as possible (without calibrating hits). Defaults to `eventsample(f, idx).event`.
+  - `eventselector(f)` -- the selector `(event, detector) -> Bool` attached to the file,
+    or `nothing` (the default) for no selection. `event` is `rawevent(f, idx)` and
+    `detector` is `geometry(f)`.
+
 See [`EventFile`](@ref) for the built-in implementation covering KM3NeT online and
 offline ROOT files.
 """
@@ -25,6 +34,14 @@ abstract type AbstractEventFile end
 function geometry end
 function nevents end
 function eventsample end
+
+# Optional interface used by the selector-based navigation. `rawevent` returns the raw
+# event handed to a selector (cheap; no hit calibration), `eventselector` the selector
+# attached to the file (or `nothing`). Both have defaults so existing subtypes keep working.
+function rawevent end
+rawevent(f::AbstractEventFile, idx::Int) = eventsample(f, idx).event
+function eventselector end
+eventselector(::AbstractEventFile) = nothing
 
 """
     AbstractSummarysliceView

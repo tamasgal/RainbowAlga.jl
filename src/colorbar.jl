@@ -32,6 +32,7 @@ function setup_colorbar!(rba::RBA)
 
     ticks_plot = text!(cpscene, cbar_tick_positions;
                        text=cbar_ticks_text,
+                       font=overlayfont(),
                        fontsize=10,
                        color=RGBf(0.2, 0.2, 0.2),
                        visible=cbar_visible,
@@ -40,6 +41,7 @@ function setup_colorbar!(rba::RBA)
     title_pos = @lift Point2f($cb_x_obs + cb_w / 2, $cb_y_obs + cb_h + 15)
     title_plot = text!(cpscene, title_pos;
                        text="Δt / ns",
+                       font=overlayfont(),
                        fontsize=11,
                        color=RGBf(0.2, 0.2, 0.2),
                        visible=cbar_visible,

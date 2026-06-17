@@ -1,6 +1,6 @@
 """
-    EventFile(rootfile, detector; source=nothing)
-    EventFile(rootfile_path, detector_or_detx_path; source=nothing)
+    EventFile(rootfile, detector; source=nothing, selector=nothing)
+    EventFile(rootfile_path, detector_or_detx_path; source=nothing, selector=nothing)
 
 Built-in [`AbstractEventFile`](@ref) bundling a `KM3io.ROOTFile` with the `Detector` used to
 draw the geometry and (for online events) calibrate the hits.
@@ -13,21 +13,28 @@ draw the geometry and (for online events) calibrate the hits.
 
 When omitted, it defaults to `:offline` if the file has an offline tree, otherwise
 `:online`.
+
+`selector` is an optional function `(event, detector) -> Bool`. When given, `S` /
+`Shift+S` navigate only over the events it accepts (see [`next_selected_event!`](@ref))
+and `load!` opens the first accepted event. `event` is the raw event for the chosen
+`source` -- a `KM3io.Evt` for `:offline`, the raw DAQ event for `:online` -- and
+`detector` is the geometry. The selector runs at most once per event (results are cached).
 """
 struct EventFile <: AbstractEventFile
     rootfile::KM3io.ROOTFile
     detector::Detector
     source::Symbol
+    selector::Union{Nothing, Function}
 end
 
-function EventFile(rootfile::KM3io.ROOTFile, detector::Detector; source::Union{Nothing, Symbol}=nothing)
+function EventFile(rootfile::KM3io.ROOTFile, detector::Detector; source::Union{Nothing, Symbol}=nothing, selector::Union{Nothing, Function}=nothing)
     if isnothing(source)
         source = !isnothing(rootfile.offline) ? :offline : :online
     end
     source in (:online, :offline) || error("`source` has to be :online or :offline, got :$(source)")
     source === :online && isnothing(rootfile.online) && error("The file has no online tree.")
     source === :offline && isnothing(rootfile.offline) && error("The file has no offline tree.")
-    EventFile(rootfile, detector, source)
+    EventFile(rootfile, detector, source, selector)
 end
 EventFile(rootfile_path::AbstractString, detector::Detector; kwargs...) =
     EventFile(KM3io.ROOTFile(rootfile_path), detector; kwargs...)
@@ -36,6 +43,10 @@ EventFile(rootfile_path::AbstractString, detector_path::AbstractString; kwargs..
 
 geometry(f::EventFile) = f.detector
 nevents(f::EventFile) = f.source === :online ? length(f.rootfile.online.events) : length(f.rootfile.offline)
+eventselector(f::EventFile) = f.selector
+# Raw event for the selector: read-only, no hit calibration (cheaper than `eventsample`).
+rawevent(f::EventFile, idx::Int) =
+    f.source === :online ? getevent(f.rootfile.online, idx) : f.rootfile.offline[idx]
 
 function eventsample(f::EventFile, idx::Int)
     if f.source === :online
@@ -88,7 +99,16 @@ function load_event_by_frame_tc!(rba::RBA, f::EventFile, frame_index::Int, trigg
 end
 
 """
-Convenience: start RainbowAlga directly from a `ROOTFile` and `Detector` (wraps them in
-an [`EventFile`](@ref), auto-detecting the tree).
+    run(rootfile, detector; source=nothing, selector=nothing, interactive=true)
+
+Convenience: start RainbowAlga directly from a ROOT file and detector (paths or objects),
+wrapping them in an [`EventFile`](@ref). `source` (`:online` / `:offline`, auto-detected
+when omitted) and `selector` are forwarded to the `EventFile` constructor; `interactive`
+controls whether a window is opened.
 """
-run(rootfile::KM3io.ROOTFile, detector::Detector; kwargs...) = run(EventFile(rootfile, detector); kwargs...)
+run(rootfile::KM3io.ROOTFile, detector::Detector; interactive=true, kwargs...) =
+    run(EventFile(rootfile, detector; kwargs...); interactive=interactive)
+run(rootfile_path::AbstractString, detector::Detector; interactive=true, kwargs...) =
+    run(EventFile(rootfile_path, detector; kwargs...); interactive=interactive)
+run(rootfile_path::AbstractString, detector_path::AbstractString; interactive=true, kwargs...) =
+    run(EventFile(rootfile_path, detector_path; kwargs...); interactive=interactive)

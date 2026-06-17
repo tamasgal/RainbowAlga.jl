@@ -77,6 +77,10 @@ off-screen with [`snapshot`](@ref) -- by passing the `RBA` as the first argument
     current_event_idx::Int = 0
     current_frame_index::Int = 0
     current_trigger_counter::Int = 0
+    # Selector-based navigation (S / Shift+S): the sorted, unique event indices accepted so
+    # far and a verdict cache (idx -> accepted?) so the selector runs at most once per event.
+    selected_events::Vector{Int} = Int[]
+    _selection_verdicts::Dict{Int, Bool} = Dict{Int, Bool}()
     _colorbar::Dict{String, Any} = Dict{String, Any}()
 end
 Base.show(io::IO, rba::RBA) = print(io, "RainbowAlga event display.")

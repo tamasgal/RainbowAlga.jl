@@ -96,6 +96,8 @@ function start_eventloop(rba; interactive=true)
     setup_colorbar!(rba)
     register_colorbar_events(rba)
     setup_help_overlay!(rba)
+    setup_hover_overlay!(rba)
+    register_hover_events(rba)
 
     recording_task = @async fps_renderloop(screen, recorder)
 
@@ -146,6 +148,9 @@ function advance_and_draw!(rba, scene)
             sp.frame_idx += sp.speed
         end
     end
+    # Keep the hover tooltip correct when the camera moves on its own (auto-rotation):
+    # the module under a stationary cursor changes without a mouse-move event.
+    refresh_hover!(rba)
 end
 
 

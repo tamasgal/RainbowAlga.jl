@@ -92,7 +92,8 @@ function add!(rba::RBA, hits::T; pmt_distance=5, hit_distance=2, colorscheme=:ha
     colorfrac(h) = iszero(Δt) ? 0.0 : clamp((h.t - t_min) / Δt, 0.0, 1.0)
     colors = [RGBAf(cmap[colorfrac(h)]) for h ∈ hits]
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
-    push!(rba.hitsclouds, HitsCloud(rbahits, positions, colors, 0.9, string(colorscheme)))
+    dom_ids = [Int(h.dom_id) for h in hits]
+    push!(rba.hitsclouds, HitsCloud(rbahits, positions, dom_ids, colors, 0.9, string(colorscheme)))
     rba._colorbar["default_t_offset"] = rba.simparams.t_offset
     rba._colorbar["default_loop_end_frame_idx"] = rba.simparams.loop_end_frame_idx
     apply_hitscloud!(rba)
@@ -176,7 +177,8 @@ function add_cherenkov_cloud!(rba::RBA, track, hits, description::AbstractString
     cmap = reverse(ColorSchemes.redblue)
     colors = [RGBAf(cmap[clamp(abs(c.Δt) / 50.0, 0.0, 1.0)]) for c in cphotons]
     rbahits = [Hit(h.pos, h.dir, h.tot, h.t) for h in hits]
-    push!(rba.hitsclouds, HitsCloud(rbahits, positions, colors, 0.9, description))
+    dom_ids = [Int(h.dom_id) for h in hits]
+    push!(rba.hitsclouds, HitsCloud(rbahits, positions, dom_ids, colors, 0.9, description))
     apply_hitscloud!(rba)
     update_colorbar!(rba)
     nothing

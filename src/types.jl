@@ -13,11 +13,14 @@ Pure-data container for a set of hits: their positions and (time-based) colours 
 `description`. The hits are not a GPU object themselves; the scene holds a single shared
 `MeshScatter` (`RBA.hits_mesh`) which is reconfigured from the selected cloud. The
 `description` doubles as the name of the `ColorSchemes` colour map used for the colorbar.
+`dom_ids` is parallel to `positions` and holds the module id each hit belongs to, so a pick
+on a hit marker can be mapped back to its optical module (used by the hover tooltip).
 
 """
 mutable struct HitsCloud
     hits::Vector{Hit}
     positions::Vector{Point3f}
+    dom_ids::Vector{Int}
     colors::Vector{RGBAf}
     alpha::Float64
     description::String
@@ -56,7 +59,7 @@ off-screen with [`snapshot`](@ref) -- by passing the `RBA` as the first argument
         roll_clockwise_key = Keyboard.unknown, roll_counterclockwise_key = Keyboard.unknown,
         fix_x_key = Keyboard.unknown, fix_y_key = Keyboard.unknown, fix_z_key = Keyboard.unknown,
     )
-    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
+    infobox::GLMakie.Text = text!(GLMakie.campixel(scene), Point2f(10, 10), font=overlayfont(), fontsize=12, text = "", color=RGBf(0.2, 0.2, 0.2))
     tracks::Vector{Track} = Track[]
     hitsclouds::Vector{HitsCloud} = HitsCloud[]
     center::Point3f = Point3f(0.0, 0.0, 0.0)

@@ -51,7 +51,16 @@ function setup_help_overlay!(rba::RBA)
     visible = Observable(false)
     pad = 18
     line_h = 20
-    panel_w = 560
+    fontsize = 14
+    # Monospace columns: offset the action column a fixed number of character cells from the
+    # key column and size the panel to the widest "key + action" line (plus the footer).
+    key_chars = maximum(length, first.(KEYBINDINGS))
+    action_chars = maximum(length, last.(KEYBINDINGS))
+    col_gap = 2
+    key_col = round(Int, (key_chars + col_gap) * cellwidth(fontsize))
+    footer = "n, e, f need an event file; g, k, r, u, i, y apply in summaryslice mode."
+    panel_w = round(Int, max((key_chars + col_gap + action_chars) * cellwidth(fontsize),
+                             length(footer) * cellwidth(12)) + 2pad)
     panel_h = (length(KEYBINDINGS) + 3) * line_h + 2pad
 
     # Bottom-left corner of the panel, kept centred as the window resizes.
@@ -67,13 +76,13 @@ function setup_help_overlay!(rba::RBA)
           color = :white, align = (:left, :top), visible = visible)
 
     top = @lift(Point2f($x0 + pad, $y0 + panel_h - pad - 2line_h))
-    text!(cpscene, top; text = keys_str, fontsize = 14, align = (:left, :top),
-          color = RGBAf(0.55, 0.8, 1.0, 1.0), visible = visible)
-    text!(cpscene, @lift($top + Point2f(165, 0)); text = actions_str, fontsize = 14,
-          align = (:left, :top), color = RGBAf(0.92, 0.92, 0.92, 1.0), visible = visible)
+    text!(cpscene, top; text = keys_str, font = overlayfont(), fontsize = fontsize,
+          align = (:left, :top), color = RGBAf(0.55, 0.8, 1.0, 1.0), visible = visible)
+    text!(cpscene, @lift($top + Point2f(key_col, 0)); text = actions_str, font = overlayfont(),
+          fontsize = fontsize, align = (:left, :top), color = RGBAf(0.92, 0.92, 0.92, 1.0), visible = visible)
 
     text!(cpscene, @lift(Point2f($x0 + pad, $y0 + pad)); align = (:left, :bottom),
-          text = "n, e, f need an event file; g, k, r, u, i, y apply in summaryslice mode.", fontsize = 12,
+          text = footer, font = overlayfont(), fontsize = 12,
           color = RGBAf(0.7, 0.7, 0.7, 1.0), visible = visible)
 
     rba._plots["help_visible"] = visible

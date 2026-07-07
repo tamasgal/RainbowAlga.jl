@@ -1,6 +1,18 @@
 # GUI: infobox, render loop and screen/recording setup.
 
 """
+Print a startup/status line immediately (flushing `stdout`) so the user sees what `run` is doing
+during its several-seconds-long steps -- reading files, drawing the detector geometry,
+calibrating the first event, and compiling shaders when the window first opens -- instead of
+staring at a seemingly frozen terminal.
+"""
+function print_status(msg::AbstractString)
+    println(msg)
+    flush(stdout)
+    nothing
+end
+
+"""
 Generates the text for the infobox on the lower left.
 """
 function update_infotext!(rba)
@@ -147,10 +159,9 @@ function step_pending_search!(rba::RBA)
 end
 
 function start_eventloop(rba; interactive=true)
-    println("Creating screen")
+    print_status("Opening the window (the first launch can take several seconds while OpenGL shaders compile) ...")
     screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga", framerate=rba.simparams.fps), rba.scene)
     glw = screen.glscreen
-    println("Setting window position and size")
     GLMakie.GLFW.SetWindowPos(glw, displayparams.pos...)
     GLMakie.GLFW.SetWindowSize(glw, displayparams.size...)
 
@@ -172,6 +183,7 @@ function start_eventloop(rba; interactive=true)
         pixel_format="yuv420p"
     )
 
+    print_status("Setting up controls and overlays ...")
     register_events(rba, screen, recorder)
     setup_colorbar!(rba)
     register_colorbar_events(rba)
@@ -180,6 +192,7 @@ function start_eventloop(rba; interactive=true)
     setup_hover_overlay!(rba)
     register_hover_events(rba)
 
+    print_status("RainbowAlga is ready. Press H in the window for the keybindings.")
     recording_task = @async fps_renderloop(screen, recorder)
 
     on(screen.render_tick) do tick

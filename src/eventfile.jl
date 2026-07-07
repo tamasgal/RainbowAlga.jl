@@ -106,9 +106,15 @@ wrapping them in an [`EventFile`](@ref). `source` (`:online` / `:offline`, auto-
 when omitted) and `selector` are forwarded to the `EventFile` constructor; `interactive`
 controls whether a window is opened.
 """
-run(rootfile::KM3io.ROOTFile, detector::Detector; interactive=true, kwargs...) =
+function run(rootfile::KM3io.ROOTFile, detector::Detector; interactive=true, kwargs...)
+    print_status("Setting up the event file ...")
     run(EventFile(rootfile, detector; kwargs...); interactive=interactive)
-run(rootfile_path::AbstractString, detector::Detector; interactive=true, kwargs...) =
+end
+function run(rootfile_path::AbstractString, detector::Detector; interactive=true, kwargs...)
+    print_status("Opening ROOT file $(rootfile_path) ...")
     run(EventFile(rootfile_path, detector; kwargs...); interactive=interactive)
-run(rootfile_path::AbstractString, detector_path::AbstractString; interactive=true, kwargs...) =
+end
+function run(rootfile_path::AbstractString, detector_path::AbstractString; interactive=true, kwargs...)
+    print_status("Reading detector $(detector_path) and opening ROOT file $(rootfile_path) ...")
     run(EventFile(rootfile_path, detector_path; kwargs...); interactive=interactive)
+end

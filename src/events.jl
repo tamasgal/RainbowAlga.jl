@@ -13,6 +13,8 @@ function load_event!(rba::RBA, idx::Int)
     idx = clamp(idx, 1, n)
     rba.current_event_idx = idx
     empty!(rba)  # clears tracks + hits, keeps detector + shared mesh
+    # Reading and calibrating the hits (eventsample) is the slow part, so announce it first.
+    print_status("Loading event $idx / $n (reading and calibrating hits) ...")
     s = eventsample(f, idx)
     rba.current_frame_index = s.frame_index
     rba.current_trigger_counter = s.trigger_counter
@@ -92,6 +94,11 @@ Find the first event index accepted by the selector when walking from `start` in
 `step` (`+1`/`-1`), wrapping around the end. Returns `nothing` if no event in the whole file
 is accepted. `start == 0` (no event loaded) begins at the first/last index. Lazy: only the
 indices it visits are evaluated, and each is cached via [`is_selected!`](@ref).
+
+While walking it overwrites a single terminal line with the event currently being checked, so a
+slow (disk-bound) scan shows live progress instead of looking hung. The line is only drawn once
+the scan has been running for a moment and then at ~10 Hz, so a fast, fully-cached scan prints
+nothing and adds no flush overhead, and it is erased before the function returns.
 """
 function find_selected_from(rba::RBA, start::Int, step::Int)
     f = rba.eventfile
@@ -103,10 +110,26 @@ function find_selected_from(rba::RBA, start::Int, step::Int)
         start = step > 0 ? 0 : n + 1
     end
     cur = start
+    width = ndigits(n)
+    prefix = "Searching... event "
+    msg_len = length(prefix) + 2 * width + 1  # "cur/n", each of cur and n `width` wide, plus "/"
+    printed = false
+    last_print = time()
     for _ in 1:n
         cur = mod1(cur + step, n)
-        is_selected!(rba, cur) && return cur
+        now = time()
+        if now - last_print > 0.1
+            print("\r", prefix, lpad(cur, width), "/", n)
+            flush(stdout)
+            last_print = now
+            printed = true
+        end
+        if is_selected!(rba, cur)
+            printed && (print("\r", " "^msg_len, "\r"); flush(stdout))
+            return cur
+        end
     end
+    printed && (print("\r", " "^msg_len, "\r"); flush(stdout))
     nothing
 end
 
@@ -155,10 +178,8 @@ end
 previous_selected_event!() = previous_selected_event!(global_rba())
 
 function run(rba::RBA; interactive=true)
-    println("Registering events")
-    println("Centering scene")
+    print_status("Centering the camera ...")
     center!(rba.scene)
-    println("Updating camera")
     update_cam!(rba.scene, rba.cam, Vec3f(1000), rba.center, Vec3f(0, 0, 1))
     start_eventloop(rba; interactive=interactive)
     nothing
@@ -173,6 +194,7 @@ not open a window (use [`run`](@ref) for that).
 """
 load!(f::AbstractEventFile) = load!(global_rba(), f)
 function load!(rba::RBA, f::AbstractEventFile)
+    print_status("Drawing the detector geometry ...")
     update!(rba, geometry(f))
     rba.eventfile = f
     empty!(rba.selected_events)

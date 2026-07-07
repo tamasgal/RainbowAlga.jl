@@ -364,13 +364,24 @@ function register_events(rba::RBA, screen, recorder)
                 return Consume()
             end
             # S / Shift+S navigate the selector-accepted events. Only reached in :time mode;
-            # in :summaryslice mode S is consumed earlier as the smoothing toggle.
+            # in :summaryslice mode S is consumed earlier as the smoothing toggle. With a
+            # selector the (possibly slow) scan is deferred one frame so the render loop can
+            # show a "Searching..." overlay first; without one we call through directly to get
+            # the "no selector" info message with no overlay flash.
             if ispressed(scene, Makie.Keyboard.s & (Makie.Keyboard.left_shift | Makie.Keyboard.right_shift))
-                previous_selected_event!(rba)
+                if isnothing(eventselector(rba.eventfile))
+                    previous_selected_event!(rba)
+                else
+                    request_search!(rba, :previous)
+                end
                 return Consume()
             end
             if ispressed(scene, Makie.Keyboard.s)
-                next_selected_event!(rba)
+                if isnothing(eventselector(rba.eventfile))
+                    next_selected_event!(rba)
+                else
+                    request_search!(rba, :next)
+                end
                 return Consume()
             end
             if ispressed(scene, Makie.Keyboard.e)
@@ -481,6 +492,23 @@ end
 
 # Control functions to steer the 3D simulation
 isstopped(rba::RBA) = rba.simparams.stopped
+
+"""
+    request_search!(rba, direction)
+
+Queue a deferred selector search in `direction` (`:next` or `:previous`) and show the
+"Searching..." overlay. The scan itself is run one render tick later by `advance_and_draw!`,
+so the overlay is presented before the (potentially slow) blocking selector walk begins. A
+repeat request while one is already queued is ignored so key-repeat cannot starve the scan.
+"""
+function request_search!(rba::RBA, direction::Symbol)
+    sp = rba.simparams
+    sp.pending_search === :none || return  # a search is already queued
+    sp.pending_search = direction
+    sp.search_frames_waited = 0
+    set_searching!(rba, true)
+    nothing
+end
 reset_time(rba::RBA) = rba.simparams.frame_idx = 0
 # Step the summaryslice cursor by `n` slices, clamped to the available range.
 step_slice!(rba::RBA, n::Int) =

@@ -36,5 +36,10 @@ Base.@kwdef mutable struct SimParams
     frame_tc_input_stage::Int = 0  # 0 = off, 1 = entering frame_index, 2 = entering trigger_counter
     frame_index_buffer::String = ""
     trigger_counter_buffer::String = ""
+    # Deferred selector search (S / Shift+S): the render loop shows a centred "Searching..."
+    # overlay for one rendered frame before running the potentially slow, blocking selector
+    # scan, so the window does not look frozen. :none, :next or :previous.
+    pending_search::Symbol = :none
+    search_frames_waited::Int = 0
 end
 

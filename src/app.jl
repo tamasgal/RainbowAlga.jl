@@ -71,6 +71,81 @@ function summaryslice_infotext(rba)
     join(lines, "\n")
 end
 
+"""
+    setup_search_overlay!(rba)
+
+Create the (initially hidden) "Searching..." overlay, centred on the window in pixel space.
+It is shown by [`request_search!`](@ref) for the frame before the potentially slow selector
+scan (S / Shift+S) runs, so the window does not look frozen while the selector walks the file.
+"""
+function setup_search_overlay!(rba::RBA)
+    scene = rba.scene
+    cpscene = campixel(scene)
+    viewport = scene.viewport
+
+    visible = Observable(false)
+    label = "Searching..."
+    fontsize = 26
+    pad = 22
+    # Monospace metrics size the panel to the text plus padding (no per-glyph measuring).
+    panel_w = round(Int, length(label) * cellwidth(fontsize) + 2pad)
+    panel_h = round(Int, cellheight(fontsize) + 2pad)
+
+    # Bottom-left corner of the panel, kept centred as the window resizes.
+    x0 = @lift(round(Int, (width($viewport) - panel_w) / 2))
+    y0 = @lift(round(Int, (height($viewport) - panel_h) / 2))
+
+    poly!(cpscene, @lift(Rect2f($x0, $y0, panel_w, panel_h));
+          color = RGBAf(0.05, 0.05, 0.08, 0.9),
+          strokecolor = RGBAf(1.0, 0.8, 0.1, 0.7), strokewidth = 1.5, visible = visible)
+    text!(cpscene, @lift(Point2f($x0 + panel_w / 2, $y0 + panel_h / 2));
+          text = label, font = overlayfont(), fontsize = fontsize,
+          align = (:center, :center), color = RGBAf(1.0, 0.85, 0.2, 1.0), visible = visible)
+
+    rba._plots["searching_visible"] = visible
+    nothing
+end
+
+"Show or hide the centred \"Searching...\" overlay (no-op if it was never set up)."
+function set_searching!(rba::RBA, on::Bool)
+    haskey(rba._plots, "searching_visible") || return
+    rba._plots["searching_visible"][] = on
+    nothing
+end
+
+"""
+    step_pending_search!(rba)
+
+Advance a deferred selector search (queued by [`request_search!`](@ref)) by one render tick.
+On the first tick after a request it only bumps the wait counter so the "Searching..." overlay
+gets one fully rendered frame; on the next tick it runs the blocking selector scan and hides
+the overlay. No-op when no search is pending.
+"""
+function step_pending_search!(rba::RBA)
+    sp = rba.simparams
+    sp.pending_search === :none && return
+    if sp.search_frames_waited >= 1
+        dir = sp.pending_search
+        sp.pending_search = :none
+        sp.search_frames_waited = 0
+        # A bad event (e.g. a hit that fails calibration during load_event!) must not kill the
+        # render loop or leave the overlay stuck on screen: catch and warn, and always hide the
+        # overlay in `finally` -- otherwise the window would look exactly as "crashed" as this
+        # feature is meant to avoid. The selector itself is accepted on the raw event, so an
+        # accepted event can still throw when its hits are calibrated on load.
+        try
+            dir === :previous ? previous_selected_event!(rba) : next_selected_event!(rba)
+        catch e
+            @warn "Selector search failed to load an event" exception = (e, catch_backtrace())
+        finally
+            set_searching!(rba, false)
+        end
+    else
+        sp.search_frames_waited += 1
+    end
+    nothing
+end
+
 function start_eventloop(rba; interactive=true)
     println("Creating screen")
     screen = display(GLMakie.Screen(start_renderloop=false, focus_on_show=true, title="RainbowAlga", framerate=rba.simparams.fps), rba.scene)
@@ -101,6 +176,7 @@ function start_eventloop(rba; interactive=true)
     setup_colorbar!(rba)
     register_colorbar_events(rba)
     setup_help_overlay!(rba)
+    setup_search_overlay!(rba)
     setup_hover_overlay!(rba)
     register_hover_events(rba)
 
@@ -128,6 +204,12 @@ the slice ordinal and the rate field for that slice is painted instead.
 """
 function advance_and_draw!(rba, scene)
     sp = rba.simparams
+    # Deferred selector search (S / Shift+S): the keyboard handler runs before this callback
+    # within the same `pollevents`, so on the request frame this only bumps the wait counter and
+    # lets the frame render the "Searching..." overlay. The blocking selector scan runs on the
+    # next tick, while that already-presented frame stays on screen -- so the window shows
+    # feedback instead of looking frozen. Falls through to the normal draw below either way.
+    step_pending_search!(rba)
     if sp.animation_mode === :summaryslice
         if sp.loop_enabled && sp.frame_idx > sp.loop_end_frame_idx
             sp.frame_idx = 0

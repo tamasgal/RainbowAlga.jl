@@ -12,6 +12,21 @@ RainbowAlga.geometry(::DummyFile) = nothing
 RainbowAlga.nevents(f::DummyFile) = f.n
 RainbowAlga.rawevent(::DummyFile, idx::Int) = idx
 RainbowAlga.eventselector(f::DummyFile) = f.selector
+# Enough of eventsample for load_event! to run without any hit/track I/O (used by the deferred
+# search test): an empty hit list and no reco/MC event, with frame index and trigger counter
+# echoing the index.
+RainbowAlga.eventsample(::DummyFile, idx::Int) =
+    (; hits = RainbowAlga.Hit[], t_range = (0.0, 0.0), frame_index = idx,
+       trigger_counter = idx, event = nothing)
+
+# A file that accepts every event but whose event LOAD throws, to exercise the deferred search
+# error path (an event accepted on the raw event can still fail when its hits are calibrated).
+struct ThrowingLoadFile <: RainbowAlga.AbstractEventFile end
+RainbowAlga.geometry(::ThrowingLoadFile) = nothing
+RainbowAlga.nevents(::ThrowingLoadFile) = 3
+RainbowAlga.rawevent(::ThrowingLoadFile, idx::Int) = idx
+RainbowAlga.eventselector(::ThrowingLoadFile) = (evt, det) -> true
+RainbowAlga.eventsample(::ThrowingLoadFile, idx::Int) = error("corrupt event $idx")
 
 @testset "RainbowAlga.jl" begin
     # Loading the package initialises GLMakie, which requires a working OpenGL context
@@ -257,6 +272,76 @@ RainbowAlga.eventselector(f::DummyFile) = f.selector
         trba = RBA()
         trba.eventfile = DummyFile(4, (evt, det) -> evt == 2 ? error("boom") : evt == 4)
         @test RainbowAlga.find_selected_from(trba, 0, 1) == 4
+    end
+
+    # Deferred selector search: S / Shift+S queue a scan that runs one render tick later, with
+    # a "Searching..." overlay shown in between so a slow selector does not look like a freeze.
+    @testset "deferred selector search" begin
+        # Build on the real detector so the shared hits mesh is realized (load_event! uploads to
+        # it); a DummyFile drives the selector logic without any hit/track I/O.
+        drba = RBA(KM3io.Detector(joinpath(datadir, "detector.dynamical.datx")))
+        RainbowAlga.setup_search_overlay!(drba)
+        vis = drba._plots["searching_visible"]
+        @test vis[] == false                                   # overlay starts hidden
+        drba.current_event_idx = 0
+        drba.eventfile = DummyFile(6, (evt, det) -> iseven(evt))
+
+        # requesting a search queues the direction and shows the overlay immediately
+        RainbowAlga.request_search!(drba, :next)
+        @test drba.simparams.pending_search === :next
+        @test drba.simparams.search_frames_waited == 0
+        @test vis[] == true
+
+        # a repeat request while one is queued is ignored (key-repeat must not starve the scan)
+        RainbowAlga.request_search!(drba, :previous)
+        @test drba.simparams.pending_search === :next
+
+        # first tick: only the wait counter advances; the scan has NOT run yet and the overlay
+        # stays visible so it gets a fully rendered frame before the blocking walk
+        RainbowAlga.step_pending_search!(drba)
+        @test drba.simparams.pending_search === :next
+        @test drba.simparams.search_frames_waited == 1
+        @test vis[] == true
+        @test drba.current_event_idx == 0                      # no event loaded yet
+
+        # second tick: the scan runs (lands on the first accepted, even, index), then the
+        # overlay hides and the pending state clears
+        RainbowAlga.step_pending_search!(drba)
+        @test drba.simparams.pending_search === :none
+        @test drba.simparams.search_frames_waited == 0
+        @test vis[] == false
+        @test iseven(drba.current_event_idx)
+
+        # a further tick with nothing pending is a harmless no-op
+        RainbowAlga.step_pending_search!(drba)
+        @test drba.simparams.pending_search === :none
+
+        # Shift+S queues a backward scan the same way
+        RainbowAlga.request_search!(drba, :previous)
+        @test drba.simparams.pending_search === :previous
+        @test vis[] == true
+        RainbowAlga.step_pending_search!(drba)                 # wait frame
+        RainbowAlga.step_pending_search!(drba)                 # scan frame
+        @test iseven(drba.current_event_idx)
+        @test vis[] == false
+
+        # A search whose event load throws must not propagate out of the render step nor leave
+        # the "Searching..." overlay stuck: the error is caught+warned and the overlay hidden.
+        trba = RBA(KM3io.Detector(joinpath(datadir, "detector.dynamical.datx")))
+        RainbowAlga.setup_search_overlay!(trba)
+        tvis = trba._plots["searching_visible"]
+        trba.current_event_idx = 0
+        trba.eventfile = ThrowingLoadFile()
+        RainbowAlga.request_search!(trba, :next)
+        @test tvis[] == true
+        RainbowAlga.step_pending_search!(trba)                 # wait frame
+        @test tvis[] == true
+        # scan frame: load throws internally -> caught (warns), overlay hidden, state cleared,
+        # and crucially no exception escapes to crash the render loop.
+        @test_logs (:warn,) match_mode = :any RainbowAlga.step_pending_search!(trba)
+        @test trba.simparams.pending_search === :none
+        @test trba.simparams.search_frames_waited == 0
+        @test tvis[] == false
     end
 
     # End-to-end with the bundled offline file: a selector lands on the first accepted event

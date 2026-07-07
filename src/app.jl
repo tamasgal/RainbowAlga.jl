@@ -1,17 +1,12 @@
 # GUI: infobox, render loop and screen/recording setup.
 
-# --- Rainbow-tinted status prefix ------------------------------------------------------------
 # Every `print_status` line starts with an ASCII prefix whose colour advances one step along a
-# fixed rainbow gradient (and wraps around), so successive status lines are tinted slightly
-# differently while always reusing the same gradient.
-
+# fixed rainbow gradient (and wraps around)
 # 256-colour ANSI index (the 6x6x6 colour cube, 16..231) nearest to a saturated rainbow hue.
 _ansi256_rainbow(fraction) = let c = convert(RGB, HSV(360 * fraction, 1.0, 1.0))
     16 + 36 * round(Int, c.r * 5) + 6 * round(Int, c.g * 5) + round(Int, c.b * 5)
 end
 
-# The fixed gradient: sample the hue circle finely, then drop consecutive duplicates (the coarse
-# cube maps neighbouring hues to the same cell) so every step is a visibly distinct colour.
 const STATUS_RAINBOW = let raw = [_ansi256_rainbow((i - 1) / 36) for i in 1:36], uniq = Int[]
     for c in raw
         (isempty(uniq) || uniq[end] != c) && push!(uniq, c)
@@ -127,7 +122,6 @@ function setup_search_overlay!(rba::RBA)
     label = "Searching..."
     fontsize = 26
     pad = 22
-    # Monospace metrics size the panel to the text plus padding (no per-glyph measuring).
     panel_w = round(Int, length(label) * cellwidth(fontsize) + 2pad)
     panel_h = round(Int, cellheight(fontsize) + 2pad)
 
@@ -136,11 +130,11 @@ function setup_search_overlay!(rba::RBA)
     y0 = @lift(round(Int, (height($viewport) - panel_h) / 2))
 
     poly!(cpscene, @lift(Rect2f($x0, $y0, panel_w, panel_h));
-          color = RGBAf(0.05, 0.05, 0.08, 0.9),
-          strokecolor = RGBAf(1.0, 0.8, 0.1, 0.7), strokewidth = 1.5, visible = visible)
+          color = RGBAf(0.25, 0.25, 0.27, 0.82),
+          strokecolor = RGBAf(0.7, 0.7, 0.72, 0.4), strokewidth = 1.0, visible = visible)
     text!(cpscene, @lift(Point2f($x0 + panel_w / 2, $y0 + panel_h / 2));
           text = label, font = overlayfont(), fontsize = fontsize,
-          align = (:center, :center), color = RGBAf(1.0, 0.85, 0.2, 1.0), visible = visible)
+          align = (:center, :center), color = RGBAf(0.9, 0.9, 0.92, 0.95), visible = visible)
 
     rba._plots["searching_visible"] = visible
     nothing
@@ -168,10 +162,10 @@ function step_pending_search!(rba::RBA)
         dir = sp.pending_search
         sp.pending_search = :none
         sp.search_frames_waited = 0
-        # A bad event (e.g. a hit that fails calibration during load_event!) must not kill the
-        # render loop or leave the overlay stuck on screen: catch and warn, and always hide the
-        # overlay in `finally` -- otherwise the window would look exactly as "crashed" as this
-        # feature is meant to avoid. The selector itself is accepted on the raw event, so an
+        # A bad event  must not kill the render loop or leave the overlay stuck on screen:
+        # catch and warn, and always hide the overlay in `finally`, otherwise the window would
+        # look exactly as "crashed" as this feature is meant to avoid.
+        # The selector itself is accepted on the raw event, so an
         # accepted event can still throw when its hits are calibrated on load.
         try
             dir === :previous ? previous_selected_event!(rba) : next_selected_event!(rba)
@@ -245,10 +239,12 @@ the slice ordinal and the rate field for that slice is painted instead.
 """
 function advance_and_draw!(rba, scene)
     sp = rba.simparams
-    # Deferred selector search (S / Shift+S): the keyboard handler runs before this callback
-    # within the same `pollevents`, so on the request frame this only bumps the wait counter and
-    # lets the frame render the "Searching..." overlay. The blocking selector scan runs on the
-    # next tick, while that already-presented frame stays on screen -- so the window shows
+    # This is kind of an annoying addition but I decided to add it because otherwise
+    # the user might think RainbowAlga has crashd, yay! Selector search is basically
+    # deferred: the keyboard handler runs before this callback within the same `pollevents`,
+    # so on the request frame this only bumps the wait counter and lets the frame render
+    # the "Searching..." overlay. The blocking selector scan runs on the
+    # next tick, while that already-presented frame stays on screen, so the window shows
     # feedback instead of looking frozen. Falls through to the normal draw below either way.
     step_pending_search!(rba)
     if sp.animation_mode === :summaryslice

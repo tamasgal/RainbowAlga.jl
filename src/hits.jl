@@ -206,22 +206,25 @@ function add_reco_and_mc!(rba::RBA, event::Evt, hits)
         end
     end
 
+    length(event.mc_trks) > 0 && print("  MC particles: ")
     for mc_track in event.mc_trks
         Corpuscles.islepton(mc_track.type) || continue
         try
             particle_name = string(Corpuscles.Particle(mc_track.type).name)
-            println("  found a lepton: $(particle_name)")
+            print("$(particle_name) ")
             color = isnothing(match(r"nu", particle_name)) ? RGBf(0.0, 0.8, 0.7) : RGBf(1.0, 0.2, 0.0)
             track = Track(rba.scene, mc_track.pos, mc_track.dir, KM3io.Constants.c, mc_track.t; color=color)
             add!(rba, track)
             if !isempty(hits) && Corpuscles.charge(mc_track.type) != 0
-                println("   -> adding Cherenkov hit information")
+                # println("   -> adding Cherenkov hit information")
                 add_cherenkov_cloud!(rba, track, hits, "Cherenkov wrt. MC $(particle_name) (#$(mc_track.id))")
             end
         catch e
             @warn "Could not add MC track" exception=(e, catch_backtrace())
         end
     end
+    length(event.mc_trks) > 0 && println("")
+
     rba
 end
 

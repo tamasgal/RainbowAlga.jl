@@ -64,6 +64,30 @@ function is_selected!(rba::RBA, idx::Int)
 end
 
 """
+Run the selector on the *first* event, returning its `Bool` verdict and priming the verdict
+cache (and `selected_events`) accordingly. Meant to be called before the full match scan and
+before the window opens: a selector that throws on the first event is almost certainly broken,
+so this rethrows with an actionable message instead of letting [`find_selected_from`](@ref)
+rerun the same error on every event -- which prints a backtrace per event and looks like an
+unstoppable hang. Returns `nothing` when the file has no selector or no events.
+"""
+function check_first_event_selector!(rba::RBA, f::AbstractEventFile)
+    sel = eventselector(f)
+    (isnothing(sel) || nevents(f) == 0) && return nothing
+    first_ok = try
+        sel(rawevent(f, 1), geometry(f))::Bool
+    catch e
+        error("The event selector threw on the first event, so the display was not opened. " *
+              "It must be a function `(event, detector) -> Bool` that returns a Bool and does " *
+              "not throw. Underlying error: " * sprint(showerror, e))
+    end
+    # Prime the cache so the scan below does not re-evaluate event 1.
+    rba._selection_verdicts[1] = first_ok
+    first_ok && insert!(rba.selected_events, searchsortedfirst(rba.selected_events, 1), 1)
+    first_ok
+end
+
+"""
 Find the first event index accepted by the selector when walking from `start` in direction
 `step` (`+1`/`-1`), wrapping around the end. Returns `nothing` if no event in the whole file
 is accepted. `start == 0` (no event loaded) begins at the first/last index. Lazy: only the
@@ -155,10 +179,27 @@ function load!(rba::RBA, f::AbstractEventFile)
     empty!(rba._selection_verdicts)
     if isnothing(eventselector(f))
         load_event!(rba, 1)
+        return rba
+    end
+    if nevents(f) == 0
+        @warn "The event file contains no events."
+        return rba
+    end
+    # Before scanning the whole file (and before the window opens) make sure the selector runs
+    # on the first event and returns a Bool; a broken selector fails fast here with one clear
+    # message instead of throwing on every event during the scan below.
+    first_ok = check_first_event_selector!(rba, f)
+    @info "Selector: the first event " * (first_ok ? "matches" : "does not match") *
+          "; scanning for a matching event ..."
+    # Confirm at least one event matches before launching, so an all-rejecting selector is
+    # reported up front instead of silently opening on event 1.
+    idx = find_selected_from(rba, 0, 1)
+    if isnothing(idx)
+        @warn "No events match the selector; opening event 1 (use N / Shift+N for sequential navigation)."
+        load_event!(rba, 1)
     else
-        idx = find_selected_from(rba, 0, 1)  # first accepted event (lazy forward scan)
-        isnothing(idx) && @info "No events match the selector; showing event 1."
-        load_event!(rba, isnothing(idx) ? 1 : idx)
+        @info "Selector matched event $idx; $(length(rba.selected_events)) matching event(s) found so far. Opening it."
+        load_event!(rba, idx)
     end
     rba
 end

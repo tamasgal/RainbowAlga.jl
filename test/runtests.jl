@@ -274,6 +274,44 @@ RainbowAlga.eventsample(::ThrowingLoadFile, idx::Int) = error("corrupt event $id
         @test RainbowAlga.find_selected_from(trba, 0, 1) == 4
     end
 
+    # Pre-launch selector validation: `load!` checks the selector on the first event (and that
+    # something matches) before opening the window, so a broken selector fails fast with one
+    # message instead of throwing on every event -- the "endless loop that cannot be stopped".
+    @testset "selector first-event check" begin
+        # A broken selector (throws) fails fast on the FIRST event only; it must NOT be rerun on
+        # every event of the file.
+        calls = Ref(0)
+        brba = RBA()
+        brba.eventfile = DummyFile(1000, (evt, det) -> (calls[] += 1; error("broken")))
+        @test_throws ErrorException RainbowAlga.check_first_event_selector!(brba, brba.eventfile)
+        @test calls[] == 1                                      # only the first event was tried
+
+        # A selector returning a non-Bool is treated as broken as well (the ::Bool assert throws).
+        xrba = RBA()
+        xrba.eventfile = DummyFile(3, (evt, det) -> 42)
+        @test_throws ErrorException RainbowAlga.check_first_event_selector!(xrba, xrba.eventfile)
+
+        # A working selector returns the first-event verdict and primes the verdict cache.
+        rrba = RBA()
+        rrba.eventfile = DummyFile(6, (evt, det) -> iseven(evt))   # event 1 is odd -> rejected
+        @test RainbowAlga.check_first_event_selector!(rrba, rrba.eventfile) == false
+        @test rrba._selection_verdicts[1] == false
+        @test isempty(rrba.selected_events)
+
+        mrba = RBA()
+        mrba.eventfile = DummyFile(6, (evt, det) -> isodd(evt))    # event 1 is odd -> matched
+        @test RainbowAlga.check_first_event_selector!(mrba, mrba.eventfile) == true
+        @test mrba._selection_verdicts[1] == true
+        @test mrba.selected_events == [1]
+        # the primed verdict is reused by the scan (event 1 not double-counted)
+        @test RainbowAlga.find_selected_from(mrba, 0, 1) == 1
+        @test mrba.selected_events == [1]
+
+        # No selector / no events -> nothing to check.
+        @test RainbowAlga.check_first_event_selector!(RBA(), DummyFile(3, nothing)) === nothing
+        @test RainbowAlga.check_first_event_selector!(RBA(), DummyFile(0, (evt, det) -> true)) === nothing
+    end
+
     # Deferred selector search: S / Shift+S queue a scan that runs one render tick later, with
     # a "Searching..." overlay shown in between so a slow selector does not look like a freeze.
     @testset "deferred selector search" begin
@@ -378,6 +416,13 @@ RainbowAlga.eventsample(::ThrowingLoadFile, idx::Int) = error("corrupt event $id
         load!(norba, fnone)
         @test norba.current_event_idx == 1          # fallback to event 1
         @test isempty(norba.selected_events)
+
+        # A selector that throws on the first event makes load! abort (before opening a window)
+        # rather than flooding the console by rerunning the error on every event.
+        fbad = EventFile(joinpath(datadir, "KM3-230213A_allhits.root"),
+                         joinpath(datadir, "detector.dynamical.datx");
+                         selector = (evt, det) -> error("broken selector"))
+        @test_throws ErrorException load!(RBA(), fbad)
     end
 
     # run(...) convenience methods dispatch on paths/objects and forward source + selector

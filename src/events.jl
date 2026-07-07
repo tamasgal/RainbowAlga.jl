@@ -21,7 +21,7 @@ function load_event!(rba::RBA, idx::Int)
     isempty(s.hits) || add!(rba, s.hits; t_range=s.t_range)
     isnothing(s.event) || add_reco_and_mc!(rba, s.event, s.hits)
     reset_time(rba)
-    println("Event $idx / $n loaded")
+    print_status("Event $idx / $n loaded.")
     nothing
 end
 load_event!(idx::Int) = load_event!(global_rba(), idx)

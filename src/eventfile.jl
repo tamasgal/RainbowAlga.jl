@@ -94,7 +94,7 @@ function load_event_by_frame_tc!(rba::RBA, f::EventFile, frame_index::Int, trigg
               extrema(h.t for h in calibrate(f.detector, event.triggered_hits))
     isempty(hits) || add!(rba, hits; t_range = t_range)
     reset_time(rba)
-    println("Loaded event with frame_index=$frame_index, trigger_counter=$trigger_counter")
+    print_status("Loaded event with frame_index=$frame_index, trigger_counter=$trigger_counter")
     nothing
 end
 

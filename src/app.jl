@@ -1,13 +1,41 @@
 # GUI: infobox, render loop and screen/recording setup.
 
+# --- Rainbow-tinted status prefix ------------------------------------------------------------
+# Every `print_status` line starts with an ASCII prefix whose colour advances one step along a
+# fixed rainbow gradient (and wraps around), so successive status lines are tinted slightly
+# differently while always reusing the same gradient.
+
+# 256-colour ANSI index (the 6x6x6 colour cube, 16..231) nearest to a saturated rainbow hue.
+_ansi256_rainbow(fraction) = let c = convert(RGB, HSV(360 * fraction, 1.0, 1.0))
+    16 + 36 * round(Int, c.r * 5) + 6 * round(Int, c.g * 5) + round(Int, c.b * 5)
+end
+
+# The fixed gradient: sample the hue circle finely, then drop consecutive duplicates (the coarse
+# cube maps neighbouring hues to the same cell) so every step is a visibly distinct colour.
+const STATUS_RAINBOW = let raw = [_ansi256_rainbow((i - 1) / 36) for i in 1:36], uniq = Int[]
+    for c in raw
+        (isempty(uniq) || uniq[end] != c) && push!(uniq, c)
+    end
+    length(uniq) > 1 && uniq[end] == uniq[1] && pop!(uniq)  # avoid a wrap-around duplicate
+    uniq
+end
+const STATUS_PREFIX = ">>>"
+const STATUS_COLOR_IDX = Ref(0)  # walks STATUS_RAINBOW, wrapping around
+
 """
 Print a startup/status line immediately (flushing `stdout`) so the user sees what `run` is doing
 during its several-seconds-long steps -- reading files, drawing the detector geometry,
 calibrating the first event, and compiling shaders when the window first opens -- instead of
-staring at a seemingly frozen terminal.
+staring at a seemingly frozen terminal. The line is prefixed with an ASCII marker (`>>>`) tinted
+in a rainbow colour that advances one step per call, cycling through the fixed [`STATUS_RAINBOW`]
+gradient. `printstyled` only emits the colour codes when `stdout` is colour-capable, so piped or
+redirected output stays clean.
 """
 function print_status(msg::AbstractString)
-    println(msg)
+    color = STATUS_RAINBOW[STATUS_COLOR_IDX[] % length(STATUS_RAINBOW) + 1]
+    STATUS_COLOR_IDX[] += 1
+    printstyled(STATUS_PREFIX; color = color, bold = true)
+    println(" ", msg)
     flush(stdout)
     nothing
 end
